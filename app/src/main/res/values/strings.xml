@@ -15,4 +15,8 @@
     <string name="label_submission_time">Last Submission Time:</string>
     <string name="label_tracking_off">TRACKING OFF</string>
     <string name="label_tracking_on">TRACKING ON</string>
+    <string name="notification_title">Calindora Follow</string>
+    <string name="notification_text">Sharing Your Location</string>
+    <string name="notification_channel_name">Calindora Follow Notifications</string>
+    <string name="notification_channel_description">Default Notifications</string>
 </resources>
