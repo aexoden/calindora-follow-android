@@ -1,19 +1,15 @@
 package com.calindora.follow
 
-import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Binder
 import android.os.IBinder
-import androidx.core.app.ActivityCompat
 
 class FollowService : Service() {
     private val mBinder = FollowBinder()
@@ -88,9 +84,11 @@ class FollowService : Service() {
 
     private fun startLocationUpdates() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
+
         try {
             locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0.0f, mLocationListener)
-        } catch (e: SecurityException) { }
+        } catch (e: SecurityException) {
+        }
     }
 
     private fun stopLocationUpdates() {

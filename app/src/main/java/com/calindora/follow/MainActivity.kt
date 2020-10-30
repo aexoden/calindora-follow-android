@@ -5,7 +5,6 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
-import android.location.Location
 import android.os.Bundle
 import android.os.IBinder
 import android.widget.TextView
@@ -17,26 +16,24 @@ import androidx.core.content.ContextCompat
 private const val FEET_PER_METER = 3.2808399
 
 class MainActivity : AppCompatActivity() {
-    private var mService: FollowService? = null
-    private var mHasPermissions = false
+    private lateinit var mBinder: FollowService.FollowBinder
+    private var mBound = false
 
     private val mConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-            val binder = service as FollowService.FollowBinder
-            mService = binder.getService()
-            mService?.registerActivity(this@MainActivity)
+            mBound = true
+            mBinder = service as FollowService.FollowBinder
+            mBinder.getService().registerActivity(this@MainActivity)
             findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = true
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
-            mService = null
+            mBound = false
         }
     }
 
     private val mRequestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted: Boolean ->
-            mHasPermissions = isGranted
-        }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { _: Boolean -> }
 
     /*
      * Activity Methods
@@ -53,12 +50,10 @@ class MainActivity : AppCompatActivity() {
     override fun onStart() {
         super.onStart()
         bindService()
-        mService?.registerActivity(this)
     }
 
     override fun onStop() {
         super.onStop()
-        mService?.unregisterActivity()
         unbindService()
     }
 
@@ -90,15 +85,22 @@ class MainActivity : AppCompatActivity() {
      */
 
     fun updateDisplay() {
-        val location = mService?.location ?: return
+        if (!mBound) {
+            return
+        }
+
+        val location = mBinder.getService().location
 
         findViewById<TextView>(R.id.activity_main_status_gps_time).text = String.format("%tc", location.time)
         findViewById<TextView>(R.id.activity_main_status_latitude).text = String.format("%.5f°", location.latitude)
         findViewById<TextView>(R.id.activity_main_status_longitude).text = String.format("%.5f°", location.longitude)
-        findViewById<TextView>(R.id.activity_main_status_elevation).text = String.format("%.2f ft", location.altitude * FEET_PER_METER)
-        findViewById<TextView>(R.id.activity_main_status_speed).text = String.format("%.2f mph", location.speed * FEET_PER_METER * 60.0 * 60.0 / 5280.0)
+        findViewById<TextView>(R.id.activity_main_status_elevation).text =
+            String.format("%.2f ft", location.altitude * FEET_PER_METER)
+        findViewById<TextView>(R.id.activity_main_status_speed).text =
+            String.format("%.2f mph", location.speed * FEET_PER_METER * 60.0 * 60.0 / 5280.0)
         findViewById<TextView>(R.id.activity_main_status_bearing).text = String.format("%.2f°", location.bearing)
-        findViewById<TextView>(R.id.activity_main_status_accuracy).text = String.format("%.2f ft", location.accuracy * FEET_PER_METER)
+        findViewById<TextView>(R.id.activity_main_status_accuracy).text =
+            String.format("%.2f ft", location.accuracy * FEET_PER_METER)
     }
 
     /*
@@ -106,7 +108,7 @@ class MainActivity : AppCompatActivity() {
      */
 
     private fun bindService() {
-        if (mService == null) {
+        if (!mBound) {
             Intent(this, FollowService::class.java).also { intent ->
                 bindService(intent, mConnection, 0)
             }
@@ -114,9 +116,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun unbindService() {
-        if (mService != null) {
+        if (mBound) {
+            mBinder.getService().unregisterActivity()
             unbindService(mConnection)
-            mService = null
+            mBound = false
         }
     }
 
