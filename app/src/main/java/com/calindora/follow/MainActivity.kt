@@ -7,6 +7,8 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
+import android.view.Menu
+import android.view.MenuItem
 import android.widget.TextView
 import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts
@@ -45,6 +47,22 @@ class MainActivity : AppCompatActivity() {
 
         val toggleService: ToggleButton = findViewById(R.id.activity_main_button_service)
         toggleService.setOnCheckedChangeListener { _, isChecked -> onButtonService(isChecked) }
+    }
+
+    override fun onCreateOptionsMenu(menu: Menu): Boolean {
+        menuInflater.inflate(R.menu.menu_main, menu)
+        return true
+    }
+
+    override fun onOptionsItemSelected(item: MenuItem): Boolean {
+        return when (item.itemId) {
+            R.id.action_settings -> {
+                val intent = Intent(this, SettingsActivity::class.java)
+                startActivity(intent)
+                true
+            }
+            else -> super.onOptionsItemSelected(item)
+        }
     }
 
     override fun onStart() {

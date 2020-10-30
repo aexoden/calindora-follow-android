@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+    <EditTextPreference
+        app:key="preference_url"
+        app:title="@string/preference_url"
+        app:defaultValue="https://tracker.calindora.com" />
+    <EditTextPreference
+        app:key="preference_device_key"
+        app:title="@string/preference_device_key"
+        app:defaultValue="" />
+    <EditTextPreference
+        app:key="preference_device_secret"
+        app:title="@string/preference_device_secret"
+        app:defaultValue="" />
+</PreferenceScreen>
