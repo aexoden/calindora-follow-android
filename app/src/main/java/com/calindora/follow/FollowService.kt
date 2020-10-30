@@ -1,15 +1,31 @@
 package com.calindora.follow
 
+import android.Manifest
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationListener
+import android.location.LocationManager
 import android.os.Binder
 import android.os.IBinder
+import androidx.core.app.ActivityCompat
 
 class FollowService : Service() {
     private val mBinder = FollowBinder()
+
+    private var mActivity: MainActivity? = null
+    private lateinit var mLocation: Location
+
+    private val mLocationListener =
+        LocationListener { location -> updateLocation(location) }
+
+    val location: Location
+        get() = mLocation
 
     /*
      * Service Methods
@@ -18,6 +34,7 @@ class FollowService : Service() {
     override fun onCreate() {
         createNotificationChannel()
         createNotification()
+        startLocationUpdates()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -26,6 +43,22 @@ class FollowService : Service() {
 
     override fun onBind(intent: Intent): IBinder {
         return mBinder
+    }
+
+    override fun onDestroy() {
+        stopLocationUpdates()
+    }
+
+    /*
+     * Public Methods
+     */
+
+    fun registerActivity(activity: MainActivity) {
+        mActivity = activity
+    }
+
+    fun unregisterActivity() {
+        mActivity = null
     }
 
     /*
@@ -51,6 +84,23 @@ class FollowService : Service() {
 
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(channel)
+    }
+
+    private fun startLocationUpdates() {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
+        try {
+            locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0.0f, mLocationListener)
+        } catch (e: SecurityException) { }
+    }
+
+    private fun stopLocationUpdates() {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
+        locationManager?.removeUpdates(mLocationListener)
+    }
+
+    private fun updateLocation(location: Location) {
+        mLocation = location
+        mActivity?.updateDisplay()
     }
 
     /*
