@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private val mRequestPermissionLauncher =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { _: Boolean -> }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     /*
      * Activity Methods

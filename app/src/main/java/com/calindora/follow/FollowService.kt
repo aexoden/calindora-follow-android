@@ -1,31 +1,22 @@
 package com.calindora.follow
 
-import SubmissionWorker
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
-import android.net.ConnectivityManager
 import android.os.Binder
 import android.os.IBinder
 import androidx.preference.PreferenceManager
 import androidx.work.*
-import java.io.BufferedWriter
-import java.io.IOException
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import javax.net.ssl.HttpsURLConnection
 
 private const val UPDATE_INTERVAL = 5000
 
@@ -34,7 +25,6 @@ class FollowService : Service() {
 
     private var mActivity: MainActivity? = null
     private lateinit var mLocation: Location
-    private var mLastSubmissionTime = 0L
     private var mLastReportTime = 0L
 
     var tracking = false
@@ -151,9 +141,7 @@ class FollowService : Service() {
      * Inner Classes
      */
 
-    inner class Report(location: Location) {
-        private val location = location
-
+    inner class Report(private val location: Location) {
         private val timestamp: String get() = formatTimestamp(location.time)
         private val latitude: String get() = formatNumber(location.latitude)
         private val longitude: String get() = formatNumber(location.longitude)
