@@ -1,21 +1,43 @@
 package com.calindora.follow
 
+import SubmissionWorker
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.ConnectivityManager
 import android.os.Binder
 import android.os.IBinder
+import androidx.preference.PreferenceManager
+import androidx.work.*
+import java.io.BufferedWriter
+import java.io.IOException
+import java.io.OutputStreamWriter
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.*
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
+import javax.net.ssl.HttpsURLConnection
+
+private const val UPDATE_INTERVAL = 5000
 
 class FollowService : Service() {
     private val mBinder = FollowBinder()
 
     private var mActivity: MainActivity? = null
     private lateinit var mLocation: Location
+    private var mLastSubmissionTime = 0L
+    private var mLastReportTime = 0L
+
+    var tracking = false
 
     private val mLocationListener =
         LocationListener { location -> updateLocation(location) }
@@ -98,12 +120,111 @@ class FollowService : Service() {
 
     private fun updateLocation(location: Location) {
         mLocation = location
+
+        if (tracking && location.time > mLastReportTime + UPDATE_INTERVAL) {
+            val report = Report(location)
+            val url = report.formatUrl()
+            val parameters = report.formatParameters()
+
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
+            val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
+                .setConstraints(constraints)
+                .setInputData(workDataOf(
+                    "url" to url,
+                    "parameters" to parameters
+                ))
+                .build()
+
+            WorkManager.getInstance(this)
+                .enqueueUniqueWork("submission", ExistingWorkPolicy.APPEND_OR_REPLACE, workRequest)
+
+            mLastReportTime = location.time
+        }
+
         mActivity?.updateDisplay()
     }
 
     /*
      * Inner Classes
      */
+
+    inner class Report(location: Location) {
+        private val location = location
+
+        private val timestamp: String get() = formatTimestamp(location.time)
+        private val latitude: String get() = formatNumber(location.latitude)
+        private val longitude: String get() = formatNumber(location.longitude)
+        private val altitude: String get() = formatNumber(location.altitude)
+        private val speed: String get() = formatNumber(location.speed.toDouble())
+        private val bearing: String get() = formatNumber(location.bearing.toDouble())
+        private val accuracy: String get() = formatNumber(location.accuracy.toDouble())
+
+        /*
+         * Public Methods
+         */
+
+        fun formatUrl(): String {
+            val preferences = PreferenceManager.getDefaultSharedPreferences(this@FollowService)
+            val url = preferences.getString("preference_url", "") ?: return ""
+            val key = preferences.getString("preference_device_key", "") ?: return ""
+            return String.format("%s/api/v1/devices/%s/reports", url, key)
+        }
+
+        fun formatParameters(): String {
+            val preferences = PreferenceManager.getDefaultSharedPreferences(this@FollowService)
+            val secret = preferences.getString("preference_device_secret", "") ?: return ""
+
+            val parameters = StringBuilder()
+
+            parameters.append("timestamp=").append(URLEncoder.encode(timestamp, "UTF-8"))
+            parameters.append("&latitude=").append(latitude)
+            parameters.append("&longitude=").append(longitude)
+            parameters.append("&altitude=").append(altitude)
+            parameters.append("&speed=").append(speed)
+            parameters.append("&bearing=").append(bearing)
+            parameters.append("&accuracy=").append(accuracy)
+            parameters.append("&signature=").append(formatSignature(secret))
+
+            return parameters.toString()
+        }
+
+        /*
+         * Private Methods
+         */
+
+        private fun formatNumber(number: Double): String {
+            return String.format(Locale.US, "%.12f", number)
+        }
+
+        private fun formatSignature(secret: String): String {
+            val input = StringBuilder()
+
+            input.append(timestamp)
+            input.append(latitude)
+            input.append(longitude)
+            input.append(altitude)
+            input.append(speed)
+            input.append(bearing)
+            input.append(accuracy)
+
+            val mac = Mac.getInstance("HmacSHA256")
+            val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
+            mac.init(key)
+
+            val digest = mac.doFinal(input.toString().toByteArray(Charsets.UTF_8))
+
+            return digest.joinToString("") { "%02x".format(it) }
+        }
+
+        private fun formatTimestamp(timestamp: Long): String {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss+00:00", Locale.US)
+            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+            return dateFormat.format(Date(timestamp))
+        }
+    }
 
     inner class FollowBinder : Binder() {
         fun getService(): FollowService = this@FollowService

@@ -27,10 +27,12 @@ class MainActivity : AppCompatActivity() {
             mBinder = service as FollowService.FollowBinder
             mBinder.getService().registerActivity(this@MainActivity)
             findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = true
+            findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = true
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             mBound = false
+            findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = false
         }
     }
 
@@ -47,6 +49,9 @@ class MainActivity : AppCompatActivity() {
 
         val toggleService: ToggleButton = findViewById(R.id.activity_main_button_service)
         toggleService.setOnCheckedChangeListener { _, isChecked -> onButtonService(isChecked) }
+
+        val toggleTrack: ToggleButton = findViewById(R.id.activity_main_button_track)
+        toggleTrack.setOnCheckedChangeListener { _, isChecked -> onButtonTrack(isChecked) }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -91,10 +96,18 @@ class MainActivity : AppCompatActivity() {
                 else -> {
                     mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
                     findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = false
+                    findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = false
                 }
             }
         } else {
             stopService()
+            findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = false
+        }
+    }
+
+    private fun onButtonTrack(isChecked: Boolean) {
+        if (mBound) {
+            mBinder.getService().tracking = isChecked
         }
     }
 
@@ -112,7 +125,7 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.activity_main_status_gps_time).text = String.format("%tc", location.time)
         findViewById<TextView>(R.id.activity_main_status_latitude).text = String.format("%.5f°", location.latitude)
         findViewById<TextView>(R.id.activity_main_status_longitude).text = String.format("%.5f°", location.longitude)
-        findViewById<TextView>(R.id.activity_main_status_elevation).text =
+        findViewById<TextView>(R.id.activity_main_status_altitude).text =
             String.format("%.2f ft", location.altitude * FEET_PER_METER)
         findViewById<TextView>(R.id.activity_main_status_speed).text =
             String.format("%.2f mph", location.speed * FEET_PER_METER * 60.0 * 60.0 / 5280.0)

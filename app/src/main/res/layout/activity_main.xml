@@ -37,12 +37,12 @@
         app:layout_constraintTop_toBottomOf="@+id/activity_main_label_latitude" />
 
     <TextView
-        android:id="@+id/activity_main_label_elevation"
+        android:id="@+id/activity_main_label_altitude"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginTop="16dp"
-        android:text="@string/label_elevation"
+        android:text="@string/label_altitude"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/activity_main_label_longitude" />
 
@@ -54,7 +54,7 @@
         android:layout_marginTop="16dp"
         android:text="@string/label_speed"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/activity_main_label_elevation" />
+        app:layout_constraintTop_toBottomOf="@+id/activity_main_label_altitude" />
 
     <TextView
         android:id="@+id/activity_main_label_bearing"
@@ -109,7 +109,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         app:barrierDirection="end"
-        app:constraint_referenced_ids="activity_main_label_gps_time,activity_main_label_latitude,activity_main_label_longitude,activity_main_label_elevation,activity_main_label_speed,activity_main_label_bearing,activity_main_label_accuracy,activity_main_label_submission_time,activity_main_label_submission_queue_size"
+        app:constraint_referenced_ids="activity_main_label_gps_time,activity_main_label_latitude,activity_main_label_longitude,activity_main_label_altitude,activity_main_label_speed,activity_main_label_bearing,activity_main_label_accuracy,activity_main_label_submission_time,activity_main_label_submission_queue_size"
         tools:layout_editor_absoluteX="166dp" />
 
     <TextView
@@ -143,12 +143,12 @@
         app:layout_constraintStart_toEndOf="@+id/activity_main_barrier" />
 
     <TextView
-        android:id="@+id/activity_main_status_elevation"
+        android:id="@+id/activity_main_status_altitude"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
         android:layout_marginEnd="16dp"
-        app:layout_constraintBaseline_toBaselineOf="@+id/activity_main_label_elevation"
+        app:layout_constraintBaseline_toBaselineOf="@+id/activity_main_label_altitude"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/activity_main_barrier" />
 
