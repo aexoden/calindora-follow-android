@@ -31,13 +31,12 @@ class MainActivity : AppCompatActivity() {
             mBound = true
             mBinder = service as FollowService.FollowBinder
             mBinder.getService().registerActivity(this@MainActivity)
-            findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = true
-            findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = true
+            updateButtons()
         }
 
         override fun onServiceDisconnected(arg0: ComponentName) {
             mBound = false
-            findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = false
+            updateButtons()
         }
     }
 
@@ -57,6 +56,9 @@ class MainActivity : AppCompatActivity() {
 
         val toggleTrack: ToggleButton = findViewById(R.id.activity_main_button_track)
         toggleTrack.setOnCheckedChangeListener { _, isChecked -> onButtonTrack(isChecked) }
+
+        val toggleLog: ToggleButton = findViewById(R.id.activity_main_button_log)
+        toggleLog.setOnCheckedChangeListener { _, isChecked -> onButtonLog(isChecked) }
 
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("submission").observe(this, Observer { list ->
             var count = 0
@@ -95,6 +97,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onStart() {
         super.onStart()
+        updateButtons()
         bindService()
     }
 
@@ -118,13 +121,20 @@ class MainActivity : AppCompatActivity() {
                 }
                 else -> {
                     mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = false
-                    findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = false
+                    updateButtons()
                 }
             }
         } else {
+            mBinder.getService().logging = false
+            mBinder.getService().tracking = false
             stopService()
-            findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = false
+            updateButtons()
+        }
+    }
+
+    private fun onButtonLog(isChecked: Boolean) {
+        if (mBound) {
+            mBinder.getService().logging = isChecked
         }
     }
 
@@ -188,6 +198,20 @@ class MainActivity : AppCompatActivity() {
         unbindService()
         Intent(this, FollowService::class.java).also { intent ->
             stopService(intent)
+        }
+    }
+
+    private fun updateButtons() {
+        findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = mBound
+        findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = mBound
+        findViewById<ToggleButton>(R.id.activity_main_button_log).isEnabled = mBound
+
+        if (mBound) {
+            findViewById<ToggleButton>(R.id.activity_main_button_track).isChecked = mBinder.getService().tracking
+            findViewById<ToggleButton>(R.id.activity_main_button_log).isChecked = mBinder.getService().logging
+        } else {
+            findViewById<ToggleButton>(R.id.activity_main_button_track).isChecked = false
+            findViewById<ToggleButton>(R.id.activity_main_button_log).isChecked = false
         }
     }
 }

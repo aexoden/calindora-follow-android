@@ -8,10 +8,16 @@ import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.location.OnNmeaMessageListener
 import android.os.Binder
+import android.os.Environment
 import android.os.IBinder
 import androidx.preference.PreferenceManager
 import androidx.work.*
+import java.io.BufferedWriter
+import java.io.File
+import java.io.FileWriter
+import java.io.IOException
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
@@ -28,10 +34,33 @@ class FollowService : Service() {
     private lateinit var mLocation: Location
     private var mLastReportTime = 0L
 
+    private var mNmeaLog: BufferedWriter? = null
+
     var tracking = false
+
+    var logging: Boolean = false
+        set(value) {
+            var success = true
+
+            if (!field && value) {
+                success = startLogging()
+            } else if (field && !value) {
+                stopLogging()
+            }
+
+            field = if (success) {
+                value
+            } else {
+                field
+            }
+
+        }
 
     private val mLocationListener =
         LocationListener { location -> updateLocation(location) }
+
+    private val mNmeaListener =
+        OnNmeaMessageListener { nmea, timestamp -> logNmea(nmea, timestamp) }
 
     val location: Location
         get() = mLocation
@@ -56,6 +85,7 @@ class FollowService : Service() {
 
     override fun onDestroy() {
         stopLocationUpdates()
+        stopLogging()
     }
 
     /*
@@ -95,6 +125,32 @@ class FollowService : Service() {
         notificationManager.createNotificationChannel(channel)
     }
 
+    private fun isExternalStorageWritable(): Boolean {
+        return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
+    }
+
+    private fun logNmea(nmea: String, timestamp: Long) {
+        mNmeaLog?.write(nmea)
+    }
+
+    private fun prepareLog(): Boolean {
+        if (!isExternalStorageWritable()) {
+            return false
+        }
+
+        try {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.US)
+            val file = File(getExternalFilesDir("logs"), dateFormat.format(Date()) + ".log")
+            file.createNewFile()
+
+            mNmeaLog = BufferedWriter(FileWriter(file))
+        } catch (e: IOException) {
+            return false
+        }
+
+        return true
+    }
+
     private fun startLocationUpdates() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
@@ -107,6 +163,27 @@ class FollowService : Service() {
     private fun stopLocationUpdates() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
         locationManager?.removeUpdates(mLocationListener)
+    }
+
+    private fun startLogging(): Boolean {
+        if (!prepareLog()) {
+            return false
+        }
+
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
+
+        try {
+            locationManager?.addNmeaListener(mNmeaListener, null)
+        } catch (e: SecurityException) {
+        }
+
+        return true
+    }
+
+    private fun stopLogging() {
+        val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
+        locationManager?.removeNmeaListener(mNmeaListener)
+        mNmeaLog?.close()
     }
 
     private fun updateLocation(location: Location) {
