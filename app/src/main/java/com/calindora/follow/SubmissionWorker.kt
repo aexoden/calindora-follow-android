@@ -11,7 +11,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import javax.net.ssl.HttpsURLConnection
 
-class SubmissionWorker(appContext: Context, workerParams: WorkerParameters): Worker(appContext, workerParams) {
+class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) : Worker(appContext, workerParams) {
     override fun doWork(): Result {
         val url = inputData.getString("url")
         val parameters = inputData.getString("parameters")

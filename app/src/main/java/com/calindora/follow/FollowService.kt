@@ -205,10 +205,12 @@ class FollowService : Service() {
                     OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
                     TimeUnit.MILLISECONDS
                 )
-                .setInputData(workDataOf(
-                    "url" to url,
-                    "parameters" to parameters
-                ))
+                .setInputData(
+                    workDataOf(
+                        "url" to url,
+                        "parameters" to parameters
+                    )
+                )
                 .build()
 
             WorkManager.getInstance(this)
