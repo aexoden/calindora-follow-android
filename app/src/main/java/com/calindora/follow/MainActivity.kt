@@ -14,12 +14,17 @@ import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Observer
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
+import java.lang.Long.max
 
 private const val FEET_PER_METER = 3.2808399
 
 class MainActivity : AppCompatActivity() {
     private lateinit var mBinder: FollowService.FollowBinder
     private var mBound = false
+    private var queueSize = 0
 
     private val mConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -52,6 +57,24 @@ class MainActivity : AppCompatActivity() {
 
         val toggleTrack: ToggleButton = findViewById(R.id.activity_main_button_track)
         toggleTrack.setOnCheckedChangeListener { _, isChecked -> onButtonTrack(isChecked) }
+
+        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("submission").observe(this, Observer { list ->
+            var count = 0
+            var latestTime: Long = 0
+
+            for (info in list) {
+                if (info != null && info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.RUNNING || info.state == WorkInfo.State.BLOCKED) {
+                    count++
+                }
+
+                if (info != null && info.state == WorkInfo.State.SUCCEEDED) {
+                    latestTime = max(latestTime, info.outputData.getLong("submission_time", 0))
+                }
+            }
+
+            findViewById<TextView>(R.id.activity_main_status_submission_time).text = String.format("%tc", latestTime)
+            findViewById<TextView>(R.id.activity_main_status_submission_queue_size).text = String.format("%d", count)
+        })
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

@@ -3,6 +3,7 @@ package com.calindora.follow
 import android.content.Context
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import androidx.work.workDataOf
 import java.io.BufferedWriter
 import java.io.IOException
 import java.io.OutputStreamWriter
@@ -28,7 +29,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters): Wor
             out.close()
 
             return if (connection?.responseCode == HttpURLConnection.HTTP_OK) {
-                Result.success()
+                Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
             } else {
                 Result.retry()
             }

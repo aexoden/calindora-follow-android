@@ -15,6 +15,7 @@ import androidx.work.*
 import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
@@ -122,6 +123,11 @@ class FollowService : Service() {
 
             val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
                 .setConstraints(constraints)
+                .setBackoffCriteria(
+                    BackoffPolicy.LINEAR,
+                    OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
+                    TimeUnit.MILLISECONDS
+                )
                 .setInputData(workDataOf(
                     "url" to url,
                     "parameters" to parameters
