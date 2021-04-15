@@ -25,6 +25,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var mBinder: FollowService.FollowBinder
     private var mBound = false
     private var queueSize = 0
+    private var disableButtonCallbacks = false
 
     private val mConnection = object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
@@ -111,24 +112,26 @@ class MainActivity : AppCompatActivity() {
      */
 
     private fun onButtonService(isChecked: Boolean) {
-        if (isChecked) {
-            when (PackageManager.PERMISSION_GRANTED) {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION
-                ) -> {
-                    startService()
+        if (!disableButtonCallbacks) {
+            if (isChecked) {
+                when (PackageManager.PERMISSION_GRANTED) {
+                    ContextCompat.checkSelfPermission(
+                        this,
+                        Manifest.permission.ACCESS_FINE_LOCATION
+                    ) -> {
+                        startService()
+                    }
+                    else -> {
+                        mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+                        updateButtons()
+                    }
                 }
-                else -> {
-                    mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                    updateButtons()
-                }
+            } else {
+                mBinder.getService().logging = false
+                mBinder.getService().tracking = false
+                stopService()
+                updateButtons()
             }
-        } else {
-            mBinder.getService().logging = false
-            mBinder.getService().tracking = false
-            stopService()
-            updateButtons()
         }
     }
 
@@ -202,6 +205,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateButtons() {
+        disableButtonCallbacks = true
+
         findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = mBound
         findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = mBound
         findViewById<ToggleButton>(R.id.activity_main_button_log).isEnabled = mBound
@@ -213,5 +218,7 @@ class MainActivity : AppCompatActivity() {
             findViewById<ToggleButton>(R.id.activity_main_button_track).isChecked = false
             findViewById<ToggleButton>(R.id.activity_main_button_log).isChecked = false
         }
+
+        disableButtonCallbacks = false
     }
 }
