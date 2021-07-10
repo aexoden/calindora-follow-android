@@ -198,12 +198,7 @@ class FollowService : Service() {
             val url = report.formatUrl()
             val parameters = report.formatParameters()
 
-            val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.CONNECTED)
-                .build()
-
             val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
-                .setConstraints(constraints)
                 .setBackoffCriteria(
                     BackoffPolicy.LINEAR,
                     OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
