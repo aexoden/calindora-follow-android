@@ -1,6 +1,7 @@
 package com.calindora.follow
 
 import android.app.*
+import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.content.Intent
 import android.location.Location
 import android.location.LocationListener
@@ -106,7 +107,7 @@ class FollowService : Service() {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
 
-        val pendingIntent = PendingIntent.getActivity(this, 0, intent, 0)
+        val pendingIntent = PendingIntent.getActivity(this, 0, intent, FLAG_IMMUTABLE)
 
         val notification = Notification.Builder(this, "com.calindora.follow.default")
             .setSmallIcon(R.drawable.ic_stat_notification)
