@@ -14,7 +14,6 @@ import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Observer
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import java.lang.Long.max
@@ -24,7 +23,6 @@ private const val FEET_PER_METER = 3.2808399
 class MainActivity : AppCompatActivity() {
     private lateinit var mBinder: FollowService.FollowBinder
     private var mBound = false
-    private var queueSize = 0
     private var disableButtonCallbacks = false
 
     private val mConnection = object : ServiceConnection {
@@ -61,7 +59,7 @@ class MainActivity : AppCompatActivity() {
         val toggleLog: ToggleButton = findViewById(R.id.activity_main_button_log)
         toggleLog.setOnCheckedChangeListener { _, isChecked -> onButtonLog(isChecked) }
 
-        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("submission").observe(this, Observer { list ->
+        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("submission").observe(this) { list ->
             var count = 0
             var latestTime: Long = 0
 
@@ -77,7 +75,7 @@ class MainActivity : AppCompatActivity() {
 
             findViewById<TextView>(R.id.activity_main_status_submission_time).text = String.format("%tc", latestTime)
             findViewById<TextView>(R.id.activity_main_status_submission_queue_size).text = String.format("%d", count)
-        })
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -207,16 +205,19 @@ class MainActivity : AppCompatActivity() {
     private fun updateButtons() {
         disableButtonCallbacks = true
 
+        val mainButtonTrack = findViewById<ToggleButton>(R.id.activity_main_button_track)
+        val mainButtonLog = findViewById<ToggleButton>(R.id.activity_main_button_log)
+
         findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = mBound
-        findViewById<ToggleButton>(R.id.activity_main_button_track).isEnabled = mBound
-        findViewById<ToggleButton>(R.id.activity_main_button_log).isEnabled = mBound
+        mainButtonTrack.isEnabled = mBound
+        mainButtonLog.isEnabled = mBound
 
         if (mBound) {
-            findViewById<ToggleButton>(R.id.activity_main_button_track).isChecked = mBinder.getService().tracking
-            findViewById<ToggleButton>(R.id.activity_main_button_log).isChecked = mBinder.getService().logging
+            mainButtonTrack.isChecked = mBinder.getService().tracking
+            mainButtonLog.isChecked = mBinder.getService().logging
         } else {
-            findViewById<ToggleButton>(R.id.activity_main_button_track).isChecked = false
-            findViewById<ToggleButton>(R.id.activity_main_button_log).isChecked = false
+            mainButtonTrack.isChecked = false
+            mainButtonLog.isChecked = false
         }
 
         disableButtonCallbacks = false
