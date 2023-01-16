@@ -197,7 +197,8 @@ class FollowService : Service() {
         if (tracking && location.time > mLastReportTime + UPDATE_INTERVAL) {
             val report = Report(location)
             val url = report.formatUrl()
-            val parameters = report.formatParameters()
+            val signature = report.formatSignature()
+            val body = report.formatBody()
 
             val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
                 .setBackoffCriteria(
@@ -208,7 +209,8 @@ class FollowService : Service() {
                 .setInputData(
                     workDataOf(
                         "url" to url,
-                        "parameters" to parameters
+                        "signature" to signature,
+                        "body" to body
                     )
                 )
                 .build()
@@ -246,33 +248,26 @@ class FollowService : Service() {
             return String.format("%s/api/v1/devices/%s/reports", url, key)
         }
 
-        fun formatParameters(): String {
+        fun formatBody(): String {
+            val body = StringBuilder()
+
+            body.append("{")
+            body.append("\"timestamp\": \"").append(timestamp).append("\",\n")
+            body.append("\"latitude\": \"").append(latitude).append("\",\n")
+            body.append("\"longitude\": \"").append(longitude).append("\",\n")
+            body.append("\"altitude\": \"").append(altitude).append("\",\n")
+            body.append("\"speed\": \"").append(speed).append("\",\n")
+            body.append("\"bearing\": \"").append(bearing).append("\",\n")
+            body.append("\"accuracy\": \"").append(accuracy).append("\"\n")
+            body.append("}")
+
+            return body.toString()
+        }
+
+        fun formatSignature(): String {
             val preferences = PreferenceManager.getDefaultSharedPreferences(this@FollowService)
             val secret = preferences.getString("preference_device_secret", "") ?: return ""
 
-            val parameters = StringBuilder()
-
-            parameters.append("timestamp=").append(URLEncoder.encode(timestamp, "UTF-8"))
-            parameters.append("&latitude=").append(latitude)
-            parameters.append("&longitude=").append(longitude)
-            parameters.append("&altitude=").append(altitude)
-            parameters.append("&speed=").append(speed)
-            parameters.append("&bearing=").append(bearing)
-            parameters.append("&accuracy=").append(accuracy)
-            parameters.append("&signature=").append(formatSignature(secret))
-
-            return parameters.toString()
-        }
-
-        /*
-         * Private Methods
-         */
-
-        private fun formatNumber(number: Double): String {
-            return String.format(Locale.US, "%.12f", number)
-        }
-
-        private fun formatSignature(secret: String): String {
             val input = StringBuilder()
 
             input.append(timestamp)
@@ -290,6 +285,14 @@ class FollowService : Service() {
             val digest = mac.doFinal(input.toString().toByteArray(Charsets.UTF_8))
 
             return digest.joinToString("") { "%02x".format(it) }
+        }
+
+        /*
+         * Private Methods
+         */
+
+        private fun formatNumber(number: Double): String {
+            return String.format(Locale.US, "%.12f", number)
         }
 
         private fun formatTimestamp(timestamp: Long): String {

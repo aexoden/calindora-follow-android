@@ -6,7 +6,6 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedWriter
 import java.io.IOException
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
@@ -17,22 +16,27 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) : Co
     override suspend fun doWork(): Result {
         return withContext(Dispatchers.IO) {
             val url = inputData.getString("url")
-            val parameters = inputData.getString("parameters")
+            val signature = inputData.getString("signature")
+            val body = inputData.getString("body")
 
             var connection: HttpsURLConnection? = null
 
             try {
                 connection = (URL(url)).openConnection() as? HttpsURLConnection
+                connection?.doInput = true
                 connection?.doOutput = true
                 connection?.connectTimeout = 5000
                 connection?.readTimeout = 5000
 
-                val out = BufferedWriter(OutputStreamWriter(connection?.outputStream))
+                connection?.setRequestProperty("Content-Type", "application/json")
+                connection?.setRequestProperty("Accept", "application/json")
+                connection?.setRequestProperty("X-Signature", signature)
 
-                out.write(parameters)
+                val out = OutputStreamWriter(connection?.outputStream)
+                out.write(body)
                 out.close()
 
-                return@withContext if (connection?.responseCode == HttpURLConnection.HTTP_OK) {
+                return@withContext if (connection?.responseCode == HttpURLConnection.HTTP_CREATED) {
                     Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
                 } else {
                     Result.retry()
