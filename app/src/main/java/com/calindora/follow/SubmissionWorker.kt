@@ -1,6 +1,7 @@
 package com.calindora.follow
 
 import android.content.Context
+import androidx.preference.PreferenceManager
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -10,13 +11,15 @@ import java.io.IOException
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import javax.crypto.Mac
+import javax.crypto.spec.SecretKeySpec
 import javax.net.ssl.HttpsURLConnection
 
 class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) : CoroutineWorker(appContext, workerParams) {
     override suspend fun doWork(): Result {
         return withContext(Dispatchers.IO) {
-            val url = inputData.getString("url")
-            val signature = inputData.getString("signature")
+            val url = formatUrl()
+            val signature = formatSignature()
             val body = inputData.getString("body")
 
             var connection: HttpsURLConnection? = null
@@ -47,5 +50,26 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) : Co
                 connection?.disconnect()
             }
         }
+    }
+
+    private fun formatSignature(): String {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        val secret = preferences.getString("preference_device_secret", "") ?: return ""
+
+        val input = inputData.getString("signatureInput")
+        val mac = Mac.getInstance("HmacSHA256")
+        val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
+        mac.init(key)
+
+        val digest = mac.doFinal(input.toString().toByteArray(Charsets.UTF_8))
+
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun formatUrl(): String {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+        val url = preferences.getString("preference_url", "") ?: return ""
+        val key = preferences.getString("preference_device_key", "") ?: return ""
+        return String.format("%s/api/v1/devices/%s/reports", url, key)
     }
 }

@@ -10,18 +10,14 @@ import android.location.OnNmeaMessageListener
 import android.os.Binder
 import android.os.Environment
 import android.os.IBinder
-import androidx.preference.PreferenceManager
 import androidx.work.*
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import java.net.URLEncoder
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 
 private const val UPDATE_INTERVAL = 5000
 
@@ -196,8 +192,7 @@ class FollowService : Service() {
 
         if (tracking && location.time > mLastReportTime + UPDATE_INTERVAL) {
             val report = Report(location)
-            val url = report.formatUrl()
-            val signature = report.formatSignature()
+            val signatureInput = report.formatSignatureInput()
             val body = report.formatBody()
 
             val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
@@ -208,8 +203,7 @@ class FollowService : Service() {
                 )
                 .setInputData(
                     workDataOf(
-                        "url" to url,
-                        "signature" to signature,
+                        "signatureInput" to signatureInput,
                         "body" to body
                     )
                 )
@@ -241,13 +235,6 @@ class FollowService : Service() {
          * Public Methods
          */
 
-        fun formatUrl(): String {
-            val preferences = PreferenceManager.getDefaultSharedPreferences(this@FollowService)
-            val url = preferences.getString("preference_url", "") ?: return ""
-            val key = preferences.getString("preference_device_key", "") ?: return ""
-            return String.format("%s/api/v1/devices/%s/reports", url, key)
-        }
-
         fun formatBody(): String {
             val body = StringBuilder()
 
@@ -264,10 +251,7 @@ class FollowService : Service() {
             return body.toString()
         }
 
-        fun formatSignature(): String {
-            val preferences = PreferenceManager.getDefaultSharedPreferences(this@FollowService)
-            val secret = preferences.getString("preference_device_secret", "") ?: return ""
-
+        fun formatSignatureInput(): String {
             val input = StringBuilder()
 
             input.append(timestamp)
@@ -278,13 +262,7 @@ class FollowService : Service() {
             input.append(bearing)
             input.append(accuracy)
 
-            val mac = Mac.getInstance("HmacSHA256")
-            val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
-            mac.init(key)
-
-            val digest = mac.doFinal(input.toString().toByteArray(Charsets.UTF_8))
-
-            return digest.joinToString("") { "%02x".format(it) }
+            return input.toString()
         }
 
         /*
