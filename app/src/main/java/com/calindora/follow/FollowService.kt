@@ -223,7 +223,7 @@ class FollowService : Service() {
      */
 
     inner class Report(private val location: Location) {
-        private val timestamp: String get() = formatTimestamp(location.time)
+        private val timestamp: Long get() = location.time
         private val latitude: String get() = formatNumber(location.latitude)
         private val longitude: String get() = formatNumber(location.longitude)
         private val altitude: String get() = formatNumber(location.altitude)
@@ -239,7 +239,7 @@ class FollowService : Service() {
             val body = StringBuilder()
 
             body.append("{")
-            body.append("\"timestamp\": \"").append(timestamp).append("\",\n")
+            body.append("\"timestamp\": \"").append(formatTimestamp(timestamp)).append("\",\n")
             body.append("\"latitude\": \"").append(latitude).append("\",\n")
             body.append("\"longitude\": \"").append(longitude).append("\",\n")
             body.append("\"altitude\": \"").append(altitude).append("\",\n")
@@ -254,7 +254,7 @@ class FollowService : Service() {
         fun formatSignatureInput(): String {
             val input = StringBuilder()
 
-            input.append(timestamp)
+            input.append(formatTimestampSignature(timestamp))
             input.append(latitude)
             input.append(longitude)
             input.append(altitude)
@@ -274,6 +274,12 @@ class FollowService : Service() {
         }
 
         private fun formatTimestamp(timestamp: Long): String {
+            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS+00:00", Locale.US)
+            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
+            return dateFormat.format(Date(timestamp))
+        }
+
+        private fun formatTimestampSignature(timestamp: Long): String {
             val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss+00:00", Locale.US)
             dateFormat.timeZone = TimeZone.getTimeZone("UTC")
             return dateFormat.format(Date(timestamp))
