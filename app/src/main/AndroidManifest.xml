@@ -14,6 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.CalindoraFollow"
         android:fullBackupContent="@xml/backup_descriptor"
+        android:enableOnBackInvokedCallback="true"
         android:dataExtractionRules="@xml/data_extraction_rules">
         <activity
             android:name=".SettingsActivity"
