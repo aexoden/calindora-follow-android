@@ -56,7 +56,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) : Co
         val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
         val secret = preferences.getString("preference_device_secret", "") ?: return ""
 
-        val input = inputData.getString("signatureInput")
+        val input = inputData.getString("signatureInput")?.replace("-0.000000000000", "0.000000000000")
         val mac = Mac.getInstance("HmacSHA256")
         val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
         mac.init(key)

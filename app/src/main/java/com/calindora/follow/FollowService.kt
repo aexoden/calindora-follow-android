@@ -270,7 +270,13 @@ class FollowService : Service() {
          */
 
         private fun formatNumber(number: Double): String {
-            return String.format(Locale.US, "%.12f", number)
+            val output = String.format(Locale.US, "%.12f", number)
+
+            if (output == "-0.000000000000") {
+                return "0.000000000000"
+            }
+
+            return output;
         }
 
         private fun formatTimestamp(timestamp: Long): String {
