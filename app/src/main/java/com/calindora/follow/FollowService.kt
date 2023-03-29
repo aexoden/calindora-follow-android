@@ -1,8 +1,10 @@
 package com.calindora.follow
 
+import android.Manifest
 import android.app.*
 import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
@@ -10,6 +12,7 @@ import android.location.OnNmeaMessageListener
 import android.os.Binder
 import android.os.Environment
 import android.os.IBinder
+import androidx.core.content.ContextCompat
 import androidx.work.*
 import java.io.BufferedWriter
 import java.io.File
@@ -130,6 +133,7 @@ class FollowService : Service() {
         return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
     }
 
+    @Suppress("UNUSED_PARAMETER")
     private fun logNmea(nmea: String, timestamp: Long) {
         mNmeaLog?.write(nmea)
     }
@@ -155,9 +159,14 @@ class FollowService : Service() {
     private fun startLocationUpdates() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
-        try {
-            locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0.0f, mLocationListener)
-        } catch (e: SecurityException) {
+        when (PackageManager.PERMISSION_GRANTED) {
+            // It should be impossible for this to fail, since the startLocationUpdates call itself was gated by a permission check.
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) -> {
+                locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0.0f, mLocationListener)
+            }
         }
     }
 
@@ -173,9 +182,14 @@ class FollowService : Service() {
 
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
-        try {
-            locationManager?.addNmeaListener(mNmeaListener, null)
-        } catch (e: SecurityException) {
+        when (PackageManager.PERMISSION_GRANTED) {
+            // It should be impossible for this to fail, since the startLogging call itself was gated by a permission check.
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) -> {
+                locationManager?.addNmeaListener(mNmeaListener, null)
+            }
         }
 
         return true
@@ -198,7 +212,7 @@ class FollowService : Service() {
             val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
                 .setBackoffCriteria(
                     BackoffPolicy.LINEAR,
-                    OneTimeWorkRequest.MIN_BACKOFF_MILLIS,
+                    WorkRequest.MIN_BACKOFF_MILLIS,
                     TimeUnit.MILLISECONDS
                 )
                 .setInputData(
@@ -276,7 +290,7 @@ class FollowService : Service() {
                 return "0.000000000000"
             }
 
-            return output;
+            return output
         }
 
         private fun formatTimestamp(timestamp: Long): String {
