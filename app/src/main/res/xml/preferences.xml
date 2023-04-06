@@ -12,4 +12,7 @@
         app:key="preference_device_secret"
         app:title="@string/preference_device_secret"
         app:defaultValue="" />
+    <SwitchPreference
+        app:key="preference_cancel_on_failure"
+        app:title="@string/preference_cancel_on_failure" />
 </PreferenceScreen>

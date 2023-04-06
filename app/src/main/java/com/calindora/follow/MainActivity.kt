@@ -9,6 +9,7 @@ import android.os.Bundle
 import android.os.IBinder
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.Button
 import android.widget.TextView
 import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts
@@ -59,6 +60,12 @@ class MainActivity : AppCompatActivity() {
         val toggleLog: ToggleButton = findViewById(R.id.activity_main_button_log)
         toggleLog.setOnCheckedChangeListener { _, isChecked -> onButtonLog(isChecked) }
 
+        val toggleDebug: ToggleButton = findViewById(R.id.activity_main_button_debug)
+        toggleDebug.setOnCheckedChangeListener { _, _ -> onButtonDebug() }
+
+        val buttonClear: Button = findViewById(R.id.activity_main_button_clear)
+        buttonClear.setOnClickListener { onButtonClear() }
+
         WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("submission").observe(this) { list ->
             var count = 0
             var latestTime: Long = 0
@@ -108,6 +115,14 @@ class MainActivity : AppCompatActivity() {
     /*
      * UI Callback Methods
      */
+
+    private fun onButtonClear() {
+        WorkManager.getInstance(this).cancelAllWork()
+    }
+
+    private fun onButtonDebug() {
+        updateButtons()
+    }
 
     private fun onButtonService(isChecked: Boolean) {
         if (!disableButtonCallbacks) {
@@ -207,10 +222,14 @@ class MainActivity : AppCompatActivity() {
 
         val mainButtonTrack = findViewById<ToggleButton>(R.id.activity_main_button_track)
         val mainButtonLog = findViewById<ToggleButton>(R.id.activity_main_button_log)
+        val mainButtonDebug = findViewById<ToggleButton>(R.id.activity_main_button_debug)
+        val mainButtonClear = findViewById<Button>(R.id.activity_main_button_clear)
 
         findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = mBound
         mainButtonTrack.isEnabled = mBound
         mainButtonLog.isEnabled = mBound
+
+        mainButtonClear.isEnabled = mainButtonDebug.isChecked
 
         if (mBound) {
             mainButtonTrack.isChecked = mBinder.getService().tracking

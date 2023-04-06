@@ -4,6 +4,9 @@
     <string name="label_accuracy">Accuracy:</string>
     <string name="label_altitude">Altitude:</string>
     <string name="label_bearing">Bearing:</string>
+    <string name="label_clear_queue">CLEAR QUEUE</string>
+    <string name="label_debug_on">DEBUG BUTTONS ENABLED</string>
+    <string name="label_debug_off">DEBUG BUTTONS DISABLED</string>
     <string name="label_gps_time">GPS Time:</string>
     <string name="label_latitude">Latitude:</string>
     <string name="label_logging_off">LOGGING OFF</string>
@@ -21,6 +24,7 @@
     <string name="notification_channel_name">Calindora Follow Notifications</string>
     <string name="notification_channel_description">Default Notifications</string>
     <string name="preference_url">Service URL</string>
+    <string name="preference_cancel_on_failure">Cancel On Failure (once)</string>
     <string name="preference_device_key">Device Key</string>
     <string name="preference_device_secret">Device Secret</string>
 </resources>

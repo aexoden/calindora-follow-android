@@ -42,13 +42,27 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) : Co
                 return@withContext if (connection?.responseCode == HttpURLConnection.HTTP_CREATED) {
                     Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
                 } else {
-                    Result.retry()
+                    error()
                 }
             } catch (e: IOException) {
-                return@withContext Result.retry()
+                return@withContext error()
             } finally {
                 connection?.disconnect()
             }
+        }
+    }
+
+    private fun error(): Result {
+        val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+
+        return if (preferences.getBoolean("preference_cancel_on_failure", false)) {
+            val editor = preferences.edit()
+            editor.putBoolean("preference_cancel_on_failure", false)
+            editor.apply()
+
+            Result.success()
+        } else {
+            Result.retry()
         }
     }
 
