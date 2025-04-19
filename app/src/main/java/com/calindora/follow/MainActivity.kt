@@ -15,6 +15,10 @@ import android.widget.ToggleButton
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import java.lang.Long.max
@@ -51,6 +55,20 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.activity_main)) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+
+            view.updatePadding(
+                left = insets.left,
+                top = insets.top,
+                right = insets.right,
+                bottom = insets.bottom,
+            )
+
+            WindowInsetsCompat.CONSUMED
+        }
+
         val toggleService: ToggleButton = findViewById(R.id.activity_main_button_service)
         toggleService.setOnCheckedChangeListener { _, isChecked -> onButtonService(isChecked) }
 
@@ -71,11 +89,11 @@ class MainActivity : AppCompatActivity() {
             var latestTime: Long = 0
 
             for (info in list) {
-                if (info != null && info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.RUNNING || info.state == WorkInfo.State.BLOCKED) {
+                if (info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.RUNNING || info.state == WorkInfo.State.BLOCKED) {
                     count++
                 }
 
-                if (info != null && info.state == WorkInfo.State.SUCCEEDED) {
+                if (info.state == WorkInfo.State.SUCCEEDED) {
                     latestTime = max(latestTime, info.outputData.getLong("submission_time", 0))
                 }
             }
