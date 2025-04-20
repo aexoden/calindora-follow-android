@@ -4,11 +4,13 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import android.widget.ToggleButton
@@ -19,13 +21,14 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
-import java.lang.Long.max
+import androidx.lifecycle.ViewModelProvider
+import androidx.preference.PreferenceManager
+import java.util.*
 
 private const val FEET_PER_METER = 3.2808399
 
 class MainActivity : AppCompatActivity() {
+    private lateinit var locationViewModel: LocationViewModel
     private lateinit var mBinder: FollowService.FollowBinder
     private var mBound = false
     private var disableButtonCallbacks = false
@@ -47,6 +50,13 @@ class MainActivity : AppCompatActivity() {
     private val mRequestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
+    private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        if (key == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED) {
+            updateCredentialWarning()
+        }
+    }
+
+
     /*
      * Activity Methods
      */
@@ -54,6 +64,8 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        checkNotificationPermission()
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.activity_main)) { view, windowInsets ->
@@ -69,6 +81,16 @@ class MainActivity : AppCompatActivity() {
             WindowInsetsCompat.CONSUMED
         }
 
+        locationViewModel = ViewModelProvider(this)[LocationViewModel::class.java]
+
+        locationViewModel.queueSize.observe(this) { size ->
+            findViewById<TextView>(R.id.activity_main_status_submission_queue_size).text = size.toString()
+        }
+
+        locationViewModel.lastSubmissionTime.observe(this) { time ->
+            findViewById<TextView>(R.id.activity_main_status_submission_time).text = formatTime(time)
+        }
+
         val toggleService: ToggleButton = findViewById(R.id.activity_main_button_service)
         toggleService.setOnCheckedChangeListener { _, isChecked -> onButtonService(isChecked) }
 
@@ -82,25 +104,10 @@ class MainActivity : AppCompatActivity() {
         toggleDebug.setOnCheckedChangeListener { _, _ -> onButtonDebug() }
 
         val buttonClear: Button = findViewById(R.id.activity_main_button_clear)
-        buttonClear.setOnClickListener { onButtonClear() }
+        buttonClear.setOnClickListener { locationViewModel.clearQueue() }
 
-        WorkManager.getInstance(this).getWorkInfosForUniqueWorkLiveData("submission").observe(this) { list ->
-            var count = 0
-            var latestTime: Long = 0
-
-            for (info in list) {
-                if (info.state == WorkInfo.State.ENQUEUED || info.state == WorkInfo.State.RUNNING || info.state == WorkInfo.State.BLOCKED) {
-                    count++
-                }
-
-                if (info.state == WorkInfo.State.SUCCEEDED) {
-                    latestTime = max(latestTime, info.outputData.getLong("submission_time", 0))
-                }
-            }
-
-            findViewById<TextView>(R.id.activity_main_status_submission_time).text = String.format("%tc", latestTime)
-            findViewById<TextView>(R.id.activity_main_status_submission_queue_size).text = String.format("%d", count)
-        }
+        val buttonForceSync: Button = findViewById(R.id.activity_main_button_force_sync)
+        buttonForceSync.setOnClickListener { locationViewModel.forceSubmission() }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -119,6 +126,19 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        updateCredentialWarning()
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .registerOnSharedPreferenceChangeListener(prefListener)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .unregisterOnSharedPreferenceChangeListener(prefListener)
+    }
+
     override fun onStart() {
         super.onStart()
         updateButtons()
@@ -133,10 +153,6 @@ class MainActivity : AppCompatActivity() {
     /*
      * UI Callback Methods
      */
-
-    private fun onButtonClear() {
-        WorkManager.getInstance(this).cancelAllWork()
-    }
 
     private fun onButtonDebug() {
         updateButtons()
@@ -178,6 +194,18 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun checkNotificationPermission() {
+        when (PackageManager.PERMISSION_GRANTED) {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) -> {}
+            else -> {
+                mRequestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     /*
      * Public Methods
      */
@@ -188,17 +216,18 @@ class MainActivity : AppCompatActivity() {
         }
 
         val location = mBinder.getService().location
+        val locale = Locale.getDefault()
 
-        findViewById<TextView>(R.id.activity_main_status_gps_time).text = String.format("%tc", location.time)
-        findViewById<TextView>(R.id.activity_main_status_latitude).text = String.format("%.5f°", location.latitude)
-        findViewById<TextView>(R.id.activity_main_status_longitude).text = String.format("%.5f°", location.longitude)
+        findViewById<TextView>(R.id.activity_main_status_gps_time).text = String.format(locale, "%tc", location.time)
+        findViewById<TextView>(R.id.activity_main_status_latitude).text = String.format(locale, "%.5f°", location.latitude)
+        findViewById<TextView>(R.id.activity_main_status_longitude).text = String.format(locale, "%.5f°", location.longitude)
         findViewById<TextView>(R.id.activity_main_status_altitude).text =
-            String.format("%.2f ft", location.altitude * FEET_PER_METER)
+            String.format(locale, "%.2f ft", location.altitude * FEET_PER_METER)
         findViewById<TextView>(R.id.activity_main_status_speed).text =
-            String.format("%.2f mph", location.speed * FEET_PER_METER * 60.0 * 60.0 / 5280.0)
-        findViewById<TextView>(R.id.activity_main_status_bearing).text = String.format("%.2f°", location.bearing)
+            String.format(locale, "%.2f mph", location.speed * FEET_PER_METER * 60.0 * 60.0 / 5280.0)
+        findViewById<TextView>(R.id.activity_main_status_bearing).text = String.format(locale, "%.2f°", location.bearing)
         findViewById<TextView>(R.id.activity_main_status_accuracy).text =
-            String.format("%.2f ft", location.accuracy * FEET_PER_METER)
+            String.format(locale, "%.2f ft", location.accuracy * FEET_PER_METER)
     }
 
     /*
@@ -235,6 +264,14 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private fun formatTime(timestamp: Long): String {
+        return if (timestamp > 0) {
+            String.format("%tc", timestamp)
+        } else {
+            "Never"
+        }
+    }
+
     private fun updateButtons() {
         disableButtonCallbacks = true
 
@@ -242,12 +279,14 @@ class MainActivity : AppCompatActivity() {
         val mainButtonLog = findViewById<ToggleButton>(R.id.activity_main_button_log)
         val mainButtonDebug = findViewById<ToggleButton>(R.id.activity_main_button_debug)
         val mainButtonClear = findViewById<Button>(R.id.activity_main_button_clear)
+        val mainButtonForceSync = findViewById<Button>(R.id.activity_main_button_force_sync)
 
         findViewById<ToggleButton>(R.id.activity_main_button_service).isChecked = mBound
         mainButtonTrack.isEnabled = mBound
         mainButtonLog.isEnabled = mBound
 
         mainButtonClear.isEnabled = mainButtonDebug.isChecked
+        mainButtonForceSync.isEnabled = mainButtonDebug.isChecked
 
         if (mBound) {
             mainButtonTrack.isChecked = mBinder.getService().tracking
@@ -258,5 +297,13 @@ class MainActivity : AppCompatActivity() {
         }
 
         disableButtonCallbacks = false
+    }
+
+    private fun updateCredentialWarning() {
+        val prefs = PreferenceManager.getDefaultSharedPreferences(this)
+        val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+
+        findViewById<TextView>(R.id.activity_main_credential_warning).visibility =
+            if (blocked) View.VISIBLE else View.GONE
     }
 }

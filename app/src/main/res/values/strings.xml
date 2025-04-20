@@ -27,4 +27,12 @@
     <string name="preference_cancel_on_failure">Cancel On Failure (once)</string>
     <string name="preference_device_key">Device Key</string>
     <string name="preference_device_secret">Device Secret</string>
+    <string name="label_force_sync">FORCE SYNC</string>
+    <string name="preference_category_status">Status</string>
+    <string name="preference_credential_status">Credential Status</string>
+    <string name="preference_credential_status_ok">Authentication working normally</string>
+    <string name="preference_reset_credential_block">Reset Authentication Block</string>
+    <string name="preference_reset_credential_block_summary">Clear the authentication failure status and retry submissions</string>
+    <string name="preference_credential_status_blocked">Authentication blocked due to multiple failures</string>
+    <string name="credential_warning">Authentication errors detected. Submissions paused. Check settings.</string>
 </resources>

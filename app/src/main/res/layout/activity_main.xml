@@ -105,6 +105,22 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/activity_main_label_submission_time" />
 
+    <TextView
+        android:id="@+id/activity_main_credential_warning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="8dp"
+        android:layout_marginEnd="16dp"
+        android:background="#FFEEEE"
+        android:padding="8dp"
+        android:text="@string/credential_warning"
+        android:textColor="#B71C1C"
+        android:visibility="gone"
+        app:layout_constraintTop_toBottomOf="@+id/activity_main_label_submission_queue_size"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
     <androidx.constraintlayout.widget.Barrier
         android:id="@+id/activity_main_barrier"
         android:layout_width="wrap_content"
@@ -214,7 +230,7 @@
         android:textOn="@string/label_on"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/activity_main_label_submission_queue_size" />
+        app:layout_constraintTop_toBottomOf="@+id/activity_main_credential_warning" />
 
     <ToggleButton
         android:id="@+id/activity_main_button_log"
@@ -264,6 +280,19 @@
         android:layout_marginEnd="16dp"
         android:layout_marginBottom="16dp"
         android:text="@string/label_clear_queue"
+        android:enabled="false"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintBottom_toTopOf="@+id/activity_main_button_force_sync" />
+
+    <Button
+        android:id="@+id/activity_main_button_force_sync"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="16dp"
+        android:text="@string/label_force_sync"
         android:enabled="false"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"

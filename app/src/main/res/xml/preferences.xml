@@ -15,4 +15,16 @@
     <SwitchPreference
         app:key="preference_cancel_on_failure"
         app:title="@string/preference_cancel_on_failure" />
+    <PreferenceCategory app:title="@string/preference_category_status">
+        <Preference
+            app:key="preference_credential_status"
+            app:title="@string/preference_credential_status"
+            app:summary="@string/preference_credential_status_ok" />
+
+        <Preference
+            app:key="preference_reset_credential_block"
+            app:title="@string/preference_reset_credential_block"
+            app:summary="@string/preference_reset_credential_block_summary"
+            app:isPreferenceVisible="false" />
+    </PreferenceCategory>
 </PreferenceScreen>

@@ -14,6 +14,11 @@ import android.os.Environment
 import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.work.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -30,6 +35,9 @@ class FollowService : Service() {
     private var mActivity: MainActivity? = null
     private lateinit var mLocation: Location
     private var mLastReportTime = 0L
+
+    private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    private lateinit var locationReportDao: LocationReportDao
 
     private var mNmeaLog: BufferedWriter? = null
 
@@ -67,9 +75,13 @@ class FollowService : Service() {
      */
 
     override fun onCreate() {
+        super.onCreate()
+
         createNotificationChannel()
         createNotification()
         startLocationUpdates()
+
+        locationReportDao = AppDatabase.getInstance(this).locationReportDao()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -81,6 +93,8 @@ class FollowService : Service() {
     }
 
     override fun onDestroy() {
+        super.onDestroy()
+        serviceScope.cancel()
         stopLocationUpdates()
         stopLogging()
     }
@@ -205,31 +219,51 @@ class FollowService : Service() {
         mLocation = location
 
         if (tracking && location.time > mLastReportTime + UPDATE_INTERVAL) {
-            val report = Report(location)
-            val signatureInput = report.formatSignatureInput()
-            val body = report.formatBody()
+            serviceScope.launch {
+                val report = Report(location)
+                val signatureInput = report.formatSignatureInput()
+                val body = report.formatBody()
 
-            val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
-                .setBackoffCriteria(
-                    BackoffPolicy.LINEAR,
-                    WorkRequest.MIN_BACKOFF_MILLIS,
-                    TimeUnit.MILLISECONDS
+                val reportEntity = LocationReportEntity(
+                    timestamp = location.time,
+                    latitude = location.latitude,
+                    longitude = location.longitude,
+                    altitude = location.altitude,
+                    speed = location.speed,
+                    bearing = location.bearing,
+                    accuracy = location.accuracy,
+                    signatureInput = signatureInput,
+                    body = body
                 )
-                .setInputData(
-                    workDataOf(
-                        "signatureInput" to signatureInput,
-                        "body" to body
-                    )
-                )
-                .build()
 
-            WorkManager.getInstance(this)
-                .enqueueUniqueWork("submission", ExistingWorkPolicy.APPEND_OR_REPLACE, workRequest)
+                locationReportDao.insert(reportEntity)
+
+                scheduleSubmissionWork()
+            }
 
             mLastReportTime = location.time
         }
 
         mActivity?.updateDisplay()
+    }
+
+    private fun scheduleSubmissionWork() {
+        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+        val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
+            .setConstraints(constraints)
+            .setBackoffCriteria(
+                BackoffPolicy.EXPONENTIAL,
+                30000,
+                TimeUnit.MILLISECONDS
+            ).build()
+
+        WorkManager.getInstance(this)
+            .enqueueUniqueWork(
+                "batch_submission",
+                ExistingWorkPolicy.KEEP,
+                workRequest
+            )
     }
 
     /*
