@@ -14,11 +14,6 @@ import android.os.Environment
 import android.os.IBinder
 import androidx.core.content.ContextCompat
 import androidx.work.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
-import kotlinx.coroutines.launch
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -26,13 +21,19 @@ import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 
 private const val UPDATE_INTERVAL = 5000
 
 class FollowService : Service() {
     private val mBinder = FollowBinder()
 
-    private var mActivity: MainActivity? = null
+    private var locationUpdateCallback: ((Location) -> Unit)? = null
+
     private lateinit var mLocation: Location
     private var mLastReportTime = 0L
 
@@ -46,29 +47,44 @@ class FollowService : Service() {
     var logging: Boolean = false
         set(value) {
             var success = true
-
             if (!field && value) {
                 success = startLogging()
             } else if (field && !value) {
                 stopLogging()
             }
 
-            field = if (success) {
-                value
-            } else {
-                field
-            }
-
+            field =
+                if (success) {
+                    value
+                } else {
+                    field
+                }
         }
 
-    private val mLocationListener =
-        LocationListener { location -> updateLocation(location) }
+    private val mLocationListener = LocationListener { location -> updateLocation(location) }
 
-    private val mNmeaListener =
-        OnNmeaMessageListener { nmea, timestamp -> logNmea(nmea, timestamp) }
+    private val mNmeaListener = OnNmeaMessageListener { nmea, timestamp ->
+        logNmea(nmea, timestamp)
+    }
 
     val location: Location
         get() = mLocation
+
+    /*
+     * Callback Methods
+     */
+
+    fun setLocationUpdateCallback(callback: (Location) -> Unit) {
+        locationUpdateCallback = callback
+
+        if (::mLocation.isInitialized) {
+            callback(mLocation)
+        }
+    }
+
+    fun unregisterLocationCallback() {
+        locationUpdateCallback = null
+    }
 
     /*
      * Service Methods
@@ -76,6 +92,17 @@ class FollowService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+
+        mLocation =
+            Location("").apply {
+                latitude = 0.0
+                longitude = 0.0
+                altitude = 0.0
+                speed = 0f
+                bearing = 0f
+                accuracy = 0f
+                time = System.currentTimeMillis()
+            }
 
         createNotificationChannel()
         createNotification()
@@ -97,18 +124,7 @@ class FollowService : Service() {
         serviceScope.cancel()
         stopLocationUpdates()
         stopLogging()
-    }
-
-    /*
-     * Public Methods
-     */
-
-    fun registerActivity(activity: MainActivity) {
-        mActivity = activity
-    }
-
-    fun unregisterActivity() {
-        mActivity = null
+        locationUpdateCallback = null
     }
 
     /*
@@ -116,18 +132,20 @@ class FollowService : Service() {
      */
 
     private fun createNotification() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
+        val intent =
+            Intent(this, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            }
 
         val pendingIntent = PendingIntent.getActivity(this, 0, intent, FLAG_IMMUTABLE)
 
-        val notification = Notification.Builder(this, "com.calindora.follow.default")
-            .setSmallIcon(R.drawable.ic_stat_notification)
-            .setContentTitle(getText(R.string.notification_title))
-            .setContentText(getText(R.string.notification_text))
-            .setContentIntent(pendingIntent)
-            .build()
+        val notification =
+            Notification.Builder(this, "com.calindora.follow.default")
+                .setSmallIcon(R.drawable.ic_stat_notification)
+                .setContentTitle(getText(R.string.notification_title))
+                .setContentText(getText(R.string.notification_text))
+                .setContentIntent(pendingIntent)
+                .build()
 
         startForeground(1, notification)
     }
@@ -174,12 +192,13 @@ class FollowService : Service() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
         when (PackageManager.PERMISSION_GRANTED) {
-            // It should be impossible for this to fail, since the startLocationUpdates call itself was gated by a permission check.
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) -> {
-                locationManager?.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0L, 0.0f, mLocationListener)
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) -> {
+                locationManager?.requestLocationUpdates(
+                    LocationManager.GPS_PROVIDER,
+                    0L,
+                    0.0f,
+                    mLocationListener,
+                )
             }
         }
     }
@@ -197,11 +216,7 @@ class FollowService : Service() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
         when (PackageManager.PERMISSION_GRANTED) {
-            // It should be impossible for this to fail, since the startLogging call itself was gated by a permission check.
-            ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.ACCESS_FINE_LOCATION
-            ) -> {
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) -> {
                 locationManager?.addNmeaListener(mNmeaListener, null)
             }
         }
@@ -218,23 +233,26 @@ class FollowService : Service() {
     private fun updateLocation(location: Location) {
         mLocation = location
 
+        locationUpdateCallback?.invoke(location)
+
         if (tracking && location.time > mLastReportTime + UPDATE_INTERVAL) {
             serviceScope.launch {
                 val report = Report(location)
                 val signatureInput = report.formatSignatureInput()
                 val body = report.formatBody()
 
-                val reportEntity = LocationReportEntity(
-                    timestamp = location.time,
-                    latitude = location.latitude,
-                    longitude = location.longitude,
-                    altitude = location.altitude,
-                    speed = location.speed,
-                    bearing = location.bearing,
-                    accuracy = location.accuracy,
-                    signatureInput = signatureInput,
-                    body = body
-                )
+                val reportEntity =
+                    LocationReportEntity(
+                        timestamp = location.time,
+                        latitude = location.latitude,
+                        longitude = location.longitude,
+                        altitude = location.altitude,
+                        speed = location.speed,
+                        bearing = location.bearing,
+                        accuracy = location.accuracy,
+                        signatureInput = signatureInput,
+                        body = body,
+                    )
 
                 locationReportDao.insert(reportEntity)
 
@@ -243,27 +261,20 @@ class FollowService : Service() {
 
             mLastReportTime = location.time
         }
-
-        mActivity?.updateDisplay()
     }
 
     private fun scheduleSubmissionWork() {
-        val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+        val constraints =
+            Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
 
-        val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>()
-            .setConstraints(constraints)
-            .setBackoffCriteria(
-                BackoffPolicy.EXPONENTIAL,
-                30000,
-                TimeUnit.MILLISECONDS
-            ).build()
+        val workRequest =
+            OneTimeWorkRequestBuilder<SubmissionWorker>()
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30000, TimeUnit.MILLISECONDS)
+                .build()
 
         WorkManager.getInstance(this)
-            .enqueueUniqueWork(
-                "batch_submission",
-                ExistingWorkPolicy.KEEP,
-                workRequest
-            )
+            .enqueueUniqueWork("batch_submission", ExistingWorkPolicy.KEEP, workRequest)
     }
 
     /*
@@ -271,13 +282,26 @@ class FollowService : Service() {
      */
 
     inner class Report(private val location: Location) {
-        private val timestamp: Long get() = location.time
-        private val latitude: String get() = formatNumber(location.latitude)
-        private val longitude: String get() = formatNumber(location.longitude)
-        private val altitude: String get() = formatNumber(location.altitude)
-        private val speed: String get() = formatNumber(location.speed.toDouble())
-        private val bearing: String get() = formatNumber(location.bearing.toDouble())
-        private val accuracy: String get() = formatNumber(location.accuracy.toDouble())
+        private val timestamp: Long
+            get() = location.time
+
+        private val latitude: String
+            get() = formatNumber(location.latitude)
+
+        private val longitude: String
+            get() = formatNumber(location.longitude)
+
+        private val altitude: String
+            get() = formatNumber(location.altitude)
+
+        private val speed: String
+            get() = formatNumber(location.speed.toDouble())
+
+        private val bearing: String
+            get() = formatNumber(location.bearing.toDouble())
+
+        private val accuracy: String
+            get() = formatNumber(location.accuracy.toDouble())
 
         /*
          * Public Methods
