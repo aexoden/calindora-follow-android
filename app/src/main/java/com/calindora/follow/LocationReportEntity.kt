@@ -23,18 +23,21 @@ data class LocationReportEntity(
     val permanentFailureReason: String = "",
     val submissionAttempts: Int = 0,
     val submittedAt: Long = 0,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
 )
 
 @Dao
 interface LocationReportDao {
-    @Insert
-    suspend fun insert(report: LocationReportEntity): Long
+    @Insert suspend fun insert(report: LocationReportEntity): Long
 
-    @Query("SELECT * FROM location_reports WHERE submittedAt = 0 ORDER BY timestamp ASC LIMIT :limit")
+    @Query(
+        "SELECT * FROM location_reports WHERE submittedAt = 0 ORDER BY timestamp ASC LIMIT :limit"
+    )
     suspend fun getUnsubmittedReports(limit: Int): List<LocationReportEntity>
 
-    @Query("UPDATE location_reports SET permanentlyFailed = true, permanentFailureReason = :reason WHERE id = :id")
+    @Query(
+        "UPDATE location_reports SET permanentlyFailed = true, permanentFailureReason = :reason WHERE id = :id"
+    )
     suspend fun markAsPermanentlyFailed(id: Long, reason: String)
 
     @Query("UPDATE location_reports SET submittedAt = :timestamp WHERE id = :id")
@@ -46,8 +49,7 @@ interface LocationReportDao {
     @Query("SELECT COUNT(*) FROM location_reports WHERE submittedAt = 0")
     fun getUnsubmittedReportCount(): Flow<Int>
 
-    @Query("SELECT MAX(submittedAt) FROM location_reports")
-    fun getLastSubmissionTime(): Flow<Long>
+    @Query("SELECT MAX(submittedAt) FROM location_reports") fun getLastSubmissionTime(): Flow<Long>
 
     @Query("DELETE FROM location_reports WHERE submittedAt > 0 AND createdAt < :timestamp")
     suspend fun deleteOldSubmittedReports(timestamp: Long)
