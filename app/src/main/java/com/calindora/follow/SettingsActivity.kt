@@ -1,10 +1,10 @@
 package com.calindora.follow
 
-import android.content.Context
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.setContent
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -29,10 +29,10 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -44,73 +44,52 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.core.content.edit
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.preference.PreferenceManager
-import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import kotlinx.coroutines.launch
 
 class SettingsActivity : AppCompatActivity() {
+    private val viewModel: SettingsViewModel by viewModels { SettingsViewModelFactory(application) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        setContent { CalindoraFollowTheme { SettingsScreen() } }
+        setContent { CalindoraFollowTheme { SettingsScreen(viewModel) } }
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(viewModel: SettingsViewModel) {
     val context = LocalContext.current
     val scrollState = rememberScrollState()
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Display toast messages for operations
+    LaunchedEffect(uiState.toastMessage) {
+        uiState.toastMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            viewModel.clearToastMessage()
+        }
+    }
+
+    // Register preference change listener
     val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
-    val scope = rememberCoroutineScope()
-
-    val locationReportDao = remember { AppDatabase.getInstance(context).locationReportDao() }
-    val failedReportCount =
-        locationReportDao
-            .getPermanentlyFailedReportCount()
-            .collectAsStateWithLifecycle(initialValue = 0)
-    val authFailureCount =
-        locationReportDao.getAuthFailureCount().collectAsStateWithLifecycle(initialValue = 0)
-
-    var url by remember {
-        mutableStateOf(
-            prefs.getString("preference_url", "https://follow.calindora.com")
-                ?: "https://follow.calindora.com"
-        )
-    }
-
-    var deviceKey by remember { mutableStateOf(prefs.getString("preference_device_key", "") ?: "") }
-
-    var deviceSecret by remember {
-        mutableStateOf(prefs.getString("preference_device_secret", "") ?: "")
-    }
-
-    var blocked by remember {
-        mutableStateOf(prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false))
-    }
-
-    var showResetDialog by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-
     val prefListener = remember {
         SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
             if (key == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED) {
-                blocked = sharedPrefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+                viewModel.updateCredentialBlockedStatus(
+                    sharedPrefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+                )
             }
         }
     }
 
     DisposableEffect(prefs) {
         prefs.registerOnSharedPreferenceChangeListener(prefListener)
-
         onDispose { prefs.unregisterOnSharedPreferenceChangeListener(prefListener) }
     }
 
@@ -126,11 +105,8 @@ fun SettingsScreen() {
             // Service URL
             SettingsTextFieldItem(
                 title = stringResource(R.string.preference_url),
-                value = url,
-                onValueChanged = { newValue ->
-                    url = newValue
-                    prefs.edit { putString("preference_url", newValue) }
-                },
+                value = uiState.serviceUrl,
+                onValueChanged = viewModel::updateServiceUrl,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -138,11 +114,8 @@ fun SettingsScreen() {
             // Device Key
             SettingsTextFieldItem(
                 title = stringResource(R.string.preference_device_key),
-                value = deviceKey,
-                onValueChanged = { newValue ->
-                    deviceKey = newValue
-                    prefs.edit { putString("preference_device_key", newValue) }
-                },
+                value = uiState.deviceKey,
+                onValueChanged = viewModel::updateDeviceKey,
             )
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -150,11 +123,8 @@ fun SettingsScreen() {
             // Device Secret
             SettingsTextFieldItem(
                 title = stringResource(R.string.preference_device_secret),
-                value = deviceSecret,
-                onValueChanged = { newValue ->
-                    deviceSecret = newValue
-                    prefs.edit { putString("preference_device_secret", newValue) }
-                },
+                value = uiState.deviceSecret,
+                onValueChanged = viewModel::updateDeviceSecret,
                 isPassword = true,
             )
 
@@ -178,24 +148,32 @@ fun SettingsScreen() {
                     )
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    if (blocked) {
-                        Text(
-                            text = stringResource(R.string.preference_credential_status_blocked),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Red,
-                        )
-                    } else if (authFailureCount.value > 0) {
-                        Text(
-                            text = "${authFailureCount.value} reports with authentication failures",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.DarkGray,
-                        )
-                    } else {
-                        Text(
-                            text = stringResource(R.string.preference_credential_status_ok),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Green,
-                        )
+                    when {
+                        uiState.isCredentialBlocked -> {
+                            Text(
+                                text =
+                                    stringResource(R.string.preference_credential_status_blocked),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Red,
+                            )
+                        }
+
+                        uiState.authFailureCount > 0 -> {
+                            Text(
+                                text =
+                                    "${uiState.authFailureCount} reports with authentication failures",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.DarkGray,
+                            )
+                        }
+
+                        else -> {
+                            Text(
+                                text = stringResource(R.string.preference_credential_status_ok),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Green,
+                            )
+                        }
                     }
                 }
             }
@@ -203,8 +181,14 @@ fun SettingsScreen() {
             Spacer(modifier = Modifier.height(16.dp))
 
             // Reset Credential Block Button (visible if blocked or enough auth failures)
-            if (blocked || authFailureCount.value >= SubmissionWorker.MAX_AUTH_FAILURES) {
-                Button(onClick = { showResetDialog = true }, modifier = Modifier.fillMaxWidth()) {
+            if (
+                uiState.isCredentialBlocked ||
+                    uiState.authFailureCount >= SubmissionWorker.MAX_AUTH_FAILURES
+            ) {
+                Button(
+                    onClick = { viewModel.showResetDialog() },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text(stringResource(R.string.preference_reset_credential_block))
                 }
 
@@ -216,20 +200,23 @@ fun SettingsScreen() {
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
             // Export Failed Reports Button (visible if any failed reports)
-            if (failedReportCount.value > 0) {
-                Button(onClick = { showExportDialog = true }, modifier = Modifier.fillMaxWidth()) {
+            if (uiState.failedReportCount > 0) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = { viewModel.showExportDialog() },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text("Export Failed Reports")
                 }
 
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Export ${failedReportCount.value} failed reports to log file",
+                    text = "Export ${uiState.failedReportCount} failed reports to log file",
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -239,7 +226,7 @@ fun SettingsScreen() {
 
                 // Delete Failed Reports Button
                 Button(
-                    onClick = { showDeleteDialog = true },
+                    onClick = { viewModel.showDeleteDialog() },
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                 ) {
@@ -249,7 +236,7 @@ fun SettingsScreen() {
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Permanently delete ${failedReportCount.value} failed reports",
+                    text = "Permanently delete ${uiState.failedReportCount} failed reports",
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),
@@ -259,9 +246,9 @@ fun SettingsScreen() {
     }
 
     // Reset Confirmation Dialog
-    if (showResetDialog) {
+    if (uiState.showResetDialog) {
         AlertDialog(
-            onDismissRequest = { showResetDialog = false },
+            onDismissRequest = { viewModel.dismissResetDialog() },
             title = { Text("Reset Authentication Block") },
             text = {
                 Text(
@@ -269,67 +256,60 @@ fun SettingsScreen() {
                 )
             },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        showResetDialog = false
-                        scope.launch { resetCredentialBlock(context) }
-                    }
-                ) {
-                    Text("Reset")
-                }
+                TextButton(onClick = { viewModel.resetCredentialBlock() }) { Text("Reset") }
             },
-            dismissButton = { TextButton(onClick = { showResetDialog = false }) { Text("Cancel") } },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissResetDialog() }) { Text("Cancel") }
+            },
         )
     }
 
     // Export Failed Reports Dialog
-    if (showExportDialog) {
+    if (uiState.showExportDialog) {
         AlertDialog(
-            onDismissRequest = { showExportDialog = false },
+            onDismissRequest = { viewModel.dismissExportDialog() },
             title = { Text("Export Failed Reports") },
             text = {
                 Text(
-                    "This will export ${failedReportCount.value} failed reports to the logs directory."
+                    "This will export ${uiState.failedReportCount} failed reports to the logs directory."
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showExportDialog = false
-                        scope.launch { exportFailedReports(context) }
+                        viewModel.exportFailedReports()
                     }
                 ) {
                     Text("Export")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showExportDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.dismissExportDialog() }) { Text("Cancel") }
             },
         )
     }
 
     // Delete Failed Reports Dialog
-    if (showDeleteDialog) {
+    if (uiState.showDeleteDialog) {
         AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
+            onDismissRequest = { viewModel.dismissDeleteDialog() },
             title = { Text("Delete Failed Reports") },
             text = {
                 Text(
-                    "This will permanently delete ${failedReportCount.value} failed reports. This action cannot be undone."
+                    "This will permanently delete ${uiState.failedReportCount} failed reports. This action cannot be undone."
                 )
             },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        showDeleteDialog = false
-                        scope.launch { deleteFailedReports(context) }
+                        viewModel.deleteFailedReports()
                     }
                 ) {
                     Text("Delete")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel") }
+                TextButton(onClick = { viewModel.dismissDeleteDialog() }) { Text("Cancel") }
             },
         )
     }
@@ -387,37 +367,4 @@ fun SettingsTextFieldItem(
             )
         }
     }
-}
-
-private suspend fun resetCredentialBlock(context: Context) {
-    val dao = AppDatabase.getInstance(context).locationReportDao()
-    dao.resetPermanentlyFailedReports()
-
-    PreferenceManager.getDefaultSharedPreferences(context).edit {
-        putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-    }
-
-    Toast.makeText(context, "Authentication block reset. Retrying submissions.", Toast.LENGTH_LONG)
-        .show()
-
-    val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>().build()
-    WorkManager.getInstance(context)
-        .enqueueUniqueWork("settings_reset_retry", ExistingWorkPolicy.REPLACE, workRequest)
-}
-
-private suspend fun exportFailedReports(context: Context) {
-    val success = SubmissionWorker.exportFailedReports(context)
-    val message =
-        if (success) {
-            "Failed reports exported to logs directory"
-        } else {
-            "Failed to export reports"
-        }
-    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-}
-
-private suspend fun deleteFailedReports(context: Context) {
-    val dao = AppDatabase.getInstance(context).locationReportDao()
-    dao.deletePermanentlyFailedReports()
-    Toast.makeText(context, "Failed reports deleted", Toast.LENGTH_LONG).show()
 }
