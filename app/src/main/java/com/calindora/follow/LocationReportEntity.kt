@@ -31,7 +31,7 @@ interface LocationReportDao {
     @Insert suspend fun insert(report: LocationReportEntity): Long
 
     @Query(
-        "SELECT * FROM location_reports WHERE submittedAt = 0 ORDER BY timestamp ASC LIMIT :limit"
+        "SELECT * FROM location_reports WHERE submittedAt = 0 AND permanentlyFailed = false ORDER BY timestamp ASC LIMIT :limit"
     )
     suspend fun getUnsubmittedReports(limit: Int): List<LocationReportEntity>
 
@@ -39,6 +39,24 @@ interface LocationReportDao {
         "UPDATE location_reports SET permanentlyFailed = true, permanentFailureReason = :reason WHERE id = :id"
     )
     suspend fun markAsPermanentlyFailed(id: Long, reason: String)
+
+    @Query("SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true AND permanentFailureReason LIKE '%401:%'")
+    suspend fun getAuthFailureCountSuspend(): Int
+
+    @Query("SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true AND permanentFailureReason LIKE '%401:%'")
+    fun getAuthFailureCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true")
+    fun getPermanentlyFailedReportCount(): Flow<Int>
+
+    @Query("SELECT * FROM location_reports WHERE permanentlyFailed = true ORDER BY timestamp DESC LIMIT :limit")
+    suspend fun getPermanentlyFailedReports(limit: Int): List<LocationReportEntity>
+
+    @Query("UPDATE location_reports SET permanentlyFailed = false, permanentFailureReason = '' WHERE permanentlyFailed = true")
+    suspend fun resetPermanentlyFailedReports()
+
+    @Query("DELETE FROM location_reports WHERE permanentlyFailed = true")
+    suspend fun deletePermanentlyFailedReports()
 
     @Query("UPDATE location_reports SET submittedAt = :timestamp WHERE id = :id")
     suspend fun markAsSubmitted(id: Long, timestamp: Long)

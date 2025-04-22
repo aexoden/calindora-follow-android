@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Environment
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
@@ -16,18 +17,24 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import java.io.BufferedWriter
+import java.io.File
+import java.io.FileWriter
 import java.io.IOException
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.*
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import javax.net.ssl.HttpsURLConnection
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val MAX_BATCH_SIZE = 50
 private const val CREDENTIAL_NOTIFICATION_ID = 38
 
 sealed class SubmissionResult {
@@ -40,19 +47,30 @@ sealed class SubmissionResult {
 
 class CredentialResetReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        SubmissionWorker.resetUnauthorizedCounter(context)
+        CoroutineScope(Dispatchers.IO).launch {
+            val dao = AppDatabase.getInstance(context).locationReportDao()
+            dao.resetPermanentlyFailedReports()
 
-        val workRequest =
-            OneTimeWorkRequestBuilder<SubmissionWorker>()
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                .build()
+            PreferenceManager.getDefaultSharedPreferences(context).edit {
+                putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+            }
 
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork("manual_credential_retry", ExistingWorkPolicy.REPLACE, workRequest)
+            val workRequest =
+                OneTimeWorkRequestBuilder<SubmissionWorker>()
+                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                    .build()
 
-        val notificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(
+                    "manual_credential_retry",
+                    ExistingWorkPolicy.REPLACE,
+                    workRequest,
+                )
+
+            val notificationManager =
+                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
+        }
     }
 }
 
@@ -62,13 +80,47 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     private val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
 
     companion object {
-        const val MAX_CONSECUTIVE_UNAUTHORIZED = 5
-        const val PREF_CONSECUTIVE_UNAUTHORIZED = "consecutive_unauthorized_count"
+        const val MAX_BATCH_SIZE = 50
+        const val MAX_AUTH_FAILURES = 5
         const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
 
-        fun resetUnauthorizedCounter(context: Context) {
-            PreferenceManager.getDefaultSharedPreferences(context).edit {
-                putInt(PREF_CONSECUTIVE_UNAUTHORIZED, 0).putBoolean(PREF_SUBMISSIONS_BLOCKED, false)
+        suspend fun exportFailedReports(context: Context): Boolean {
+            val dao = AppDatabase.getInstance(context).locationReportDao()
+            val reports = dao.getPermanentlyFailedReports(Int.MAX_VALUE)
+
+            if (reports.isEmpty()) return false
+
+            try {
+                if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) return false
+
+                val dateFormat = SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.US)
+                val file =
+                    File(
+                        context.getExternalFilesDir("logs"),
+                        "failed_reports_${dateFormat.format(Date())}.log",
+                    )
+
+                withContext(Dispatchers.IO) {
+                    BufferedWriter(FileWriter(file)).use { writer ->
+                        for (report in reports) {
+                            writer.write("Report ID: ${report.id}\n")
+                            writer.write("Timestamp: ${report.timestamp}\n")
+                            writer.write("Latitude: ${report.latitude}\n")
+                            writer.write("Longitude: ${report.longitude}\n")
+                            writer.write("Altitude: ${report.altitude}\n")
+                            writer.write("Speed: ${report.speed}\n")
+                            writer.write("Bearing: ${report.bearing}\n")
+                            writer.write("Accuracy: ${report.accuracy}\n")
+                            writer.write("Failure: ${report.permanentFailureReason}\n")
+                            writer.write("Signature Input: ${report.signatureInput}\n\n---\n\n")
+                        }
+                    }
+                }
+
+                return true
+            } catch (e: IOException) {
+                Log.e("SubmissionWorker", "Failed to export reports", e)
+                return false
             }
         }
     }
@@ -77,7 +129,13 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
         withContext(Dispatchers.IO) {
             if (preferences.getBoolean(PREF_SUBMISSIONS_BLOCKED, false)) {
                 Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
+                return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
+            }
 
+            val authFailureCount = locationReportDao.getAuthFailureCountSuspend()
+            if (authFailureCount >= MAX_AUTH_FAILURES) {
+                preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+                notifyCredentialIssue(authFailureCount)
                 return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
             }
 
@@ -87,52 +145,36 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                 var continueSubmission = true
 
                 while (continueSubmission && reports.isNotEmpty()) {
-                    var permanentFailures = 0
-
                     for (report in reports) {
                         when (val result = submitSingleReport(report)) {
                             is SubmissionResult.Success -> {
-                                preferences.edit { putInt(PREF_CONSECUTIVE_UNAUTHORIZED, 0) }
                                 locationReportDao.markAsSubmitted(
                                     report.id,
                                     System.currentTimeMillis(),
                                 )
                             }
                             is SubmissionResult.PermanentError -> {
-                                // This block checks for consecutive reports returning HTTP
-                                // Unauthorized errors. These can be caused by either the user's
-                                // credentials being wrong, or by a rare formatting bug in the
-                                // program. (I highly suspect all such bugs are gone at this point,
-                                // but this provides a safeguard.) If only a small number fail in a
-                                // row, we'll assume the issue is with a single report. Otherwise,
-                                // we'll assume a credential issue and block submissions until the
-                                // user fixes the issue.
-                                if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                                    val currentCount =
-                                        preferences.getInt(PREF_CONSECUTIVE_UNAUTHORIZED, 0)
-                                    val newCount = currentCount + 1
-                                    preferences.edit {
-                                        putInt(PREF_CONSECUTIVE_UNAUTHORIZED, newCount)
-                                    }
+                                locationReportDao.markAsPermanentlyFailed(
+                                    report.id,
+                                    "${result.errorCode}: ${result.errorMessage}",
+                                )
 
-                                    if (newCount >= MAX_CONSECUTIVE_UNAUTHORIZED) {
+                                if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                                    val newAuthFailureCount =
+                                        locationReportDao.getAuthFailureCountSuspend()
+
+                                    if (newAuthFailureCount >= MAX_AUTH_FAILURES) {
                                         preferences.edit {
                                             putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
                                         }
-                                        notifyCredentialIssue(newCount)
+
+                                        notifyCredentialIssue(newAuthFailureCount)
 
                                         return@withContext Result.failure(
                                             workDataOf("error_reason" to "CREDENTIAL_ISSUE")
                                         )
                                     }
-                                } else {
-                                    preferences.edit { putInt(PREF_CONSECUTIVE_UNAUTHORIZED, 0) }
                                 }
-
-                                locationReportDao.markAsPermanentlyFailed(
-                                    report.id,
-                                    "${result.errorCode}: ${result.errorMessage}",
-                                )
 
                                 processedAllReports = false
                             }
@@ -149,13 +191,14 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                     }
                 }
 
+                // Cleanup old reports
                 val sevenDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
                 locationReportDao.deleteOldSubmittedReports(sevenDaysAgo)
 
-                return@withContext when {
-                    processedAllReports ->
-                        Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
-                    else -> Result.retry()
+                return@withContext if (processedAllReports) {
+                    Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
+                } else {
+                    Result.retry()
                 }
             } catch (e: Exception) {
                 Log.e("BatchSubmissionWorker", "Error submitting reports", e)
@@ -180,28 +223,17 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                 PendingIntent.FLAG_IMMUTABLE,
             )
 
-        // Create a PendingIntent to reset the block
-        val resetIntent = Intent(applicationContext, CredentialResetReceiver::class.java)
-        val resetPendingIntent =
-            PendingIntent.getBroadcast(
-                applicationContext,
-                0,
-                resetIntent,
-                PendingIntent.FLAG_IMMUTABLE,
-            )
-
         // Build notification with multiple actions
         val builder =
             NotificationCompat.Builder(applicationContext, "com.calindora.follow.default")
                 .setSmallIcon(R.drawable.ic_stat_notification)
                 .setContentTitle("Authentication Problem Detected")
                 .setContentText(
-                    "$failureCount consecutive reports failed authentication. PLease check your device key and secret."
+                    "$failureCount consecutive reports failed authentication. Please check your device key and secret."
                 )
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setContentIntent(settingsPendingIntent)
                 .addAction(R.drawable.ic_stat_notification, "Check Settings", settingsPendingIntent)
-                .addAction(R.drawable.ic_stat_notification, "Reset and Retry", resetPendingIntent)
                 .setAutoCancel(false)
 
         notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
