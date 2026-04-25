@@ -38,289 +38,286 @@ import kotlinx.coroutines.withContext
 
 private const val CREDENTIAL_NOTIFICATION_ID = 38
 
-private val LOG_FILE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
+private val LOG_FILE_FORMATTER =
+    DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
 
 sealed class SubmissionResult {
-    data object Success : SubmissionResult()
+  data object Success : SubmissionResult()
 
-    data class TransientError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
+  data class TransientError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
 
-    data class PermanentError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
+  data class PermanentError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
 }
 
 class CredentialResetReceiver : BroadcastReceiver() {
-    override fun onReceive(context: Context, intent: Intent) {
-        CoroutineScope(Dispatchers.IO).launch {
-            val dao = AppDatabase.getInstance(context).locationReportDao()
-            dao.resetPermanentlyFailedReports()
+  override fun onReceive(context: Context, intent: Intent) {
+    CoroutineScope(Dispatchers.IO).launch {
+      val dao = AppDatabase.getInstance(context).locationReportDao()
+      dao.resetPermanentlyFailedReports()
 
-            PreferenceManager.getDefaultSharedPreferences(context).edit {
-                putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-            }
+      PreferenceManager.getDefaultSharedPreferences(context).edit {
+        putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+      }
 
-            val workRequest =
-                OneTimeWorkRequestBuilder<SubmissionWorker>()
-                    .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                    .build()
+      val workRequest =
+          OneTimeWorkRequestBuilder<SubmissionWorker>()
+              .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+              .build()
 
-            WorkManager.getInstance(context)
-                .enqueueUniqueWork(
-                    "manual_credential_retry",
-                    ExistingWorkPolicy.REPLACE,
-                    workRequest,
-                )
+      WorkManager.getInstance(context)
+          .enqueueUniqueWork(
+              "manual_credential_retry",
+              ExistingWorkPolicy.REPLACE,
+              workRequest,
+          )
 
-            val notificationManager =
-                context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
-        }
+      val notificationManager =
+          context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+      notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
     }
+  }
 }
 
 class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     CoroutineWorker(appContext, workerParams) {
-    private val locationReportDao = AppDatabase.getInstance(applicationContext).locationReportDao()
-    private val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+  private val locationReportDao = AppDatabase.getInstance(applicationContext).locationReportDao()
+  private val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
 
-    companion object {
-        const val MAX_BATCH_SIZE = 50
-        const val MAX_AUTH_FAILURES = 5
-        const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
+  companion object {
+    const val MAX_BATCH_SIZE = 50
+    const val MAX_AUTH_FAILURES = 5
+    const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
 
-        suspend fun exportFailedReports(context: Context): Boolean {
-            val dao = AppDatabase.getInstance(context).locationReportDao()
-            val reports = dao.getPermanentlyFailedReports(Int.MAX_VALUE)
+    suspend fun exportFailedReports(context: Context): Boolean {
+      val dao = AppDatabase.getInstance(context).locationReportDao()
+      val reports = dao.getPermanentlyFailedReports(Int.MAX_VALUE)
 
-            if (reports.isEmpty()) return false
+      if (reports.isEmpty()) return false
 
-            try {
-                if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) return false
+      try {
+        if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) return false
 
-                val file =
-                    File(
-                        context.getExternalFilesDir("logs"),
-                        "failed_reports_${LOG_FILE_FORMATTER.format(Instant.now())}.log",
-                    )
+        val file =
+            File(
+                context.getExternalFilesDir("logs"),
+                "failed_reports_${LOG_FILE_FORMATTER.format(Instant.now())}.log",
+            )
 
-                withContext(Dispatchers.IO) {
-                    BufferedWriter(FileWriter(file)).use { writer ->
-                        for (report in reports) {
-                            writer.write("Report ID: ${report.id}\n")
-                            writer.write("Timestamp: ${report.timestamp}\n")
-                            writer.write("Latitude: ${report.latitude}\n")
-                            writer.write("Longitude: ${report.longitude}\n")
-                            writer.write("Altitude: ${report.altitude}\n")
-                            writer.write("Speed: ${report.speed}\n")
-                            writer.write("Bearing: ${report.bearing}\n")
-                            writer.write("Accuracy: ${report.accuracy}\n")
-                            writer.write("Failure: ${report.permanentFailureReason}\n")
-                            writer.write("Signature Input: ${report.signatureInput}\n\n---\n\n")
-                        }
-                    }
-                }
-
-                return true
-            } catch (e: IOException) {
-                Log.e("SubmissionWorker", "Failed to export reports", e)
-                return false
-            }
-        }
-    }
-
-    override suspend fun doWork(): Result =
         withContext(Dispatchers.IO) {
-            if (preferences.getBoolean(PREF_SUBMISSIONS_BLOCKED, false)) {
-                Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
-                return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
+          BufferedWriter(FileWriter(file)).use { writer ->
+            for (report in reports) {
+              writer.write("Report ID: ${report.id}\n")
+              writer.write("Timestamp: ${report.timestamp}\n")
+              writer.write("Latitude: ${report.latitude}\n")
+              writer.write("Longitude: ${report.longitude}\n")
+              writer.write("Altitude: ${report.altitude}\n")
+              writer.write("Speed: ${report.speed}\n")
+              writer.write("Bearing: ${report.bearing}\n")
+              writer.write("Accuracy: ${report.accuracy}\n")
+              writer.write("Failure: ${report.permanentFailureReason}\n")
+              writer.write("Signature Input: ${report.signatureInput}\n\n---\n\n")
             }
-
-            val authFailureCount = locationReportDao.getAuthFailureCountSuspend()
-            if (authFailureCount >= MAX_AUTH_FAILURES) {
-                preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
-                notifyCredentialIssue(authFailureCount)
-                return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
-            }
-
-            try {
-                var reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
-                var processedAllReports = true
-                var continueSubmission = true
-
-                while (continueSubmission && reports.isNotEmpty()) {
-                    for (report in reports) {
-                        when (val result = submitSingleReport(report)) {
-                            is SubmissionResult.Success -> {
-                                locationReportDao.markAsSubmitted(
-                                    report.id,
-                                    System.currentTimeMillis(),
-                                )
-                            }
-                            is SubmissionResult.PermanentError -> {
-                                locationReportDao.markAsPermanentlyFailed(
-                                    report.id,
-                                    "${result.errorCode}: ${result.errorMessage}",
-                                )
-
-                                if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                                    val newAuthFailureCount =
-                                        locationReportDao.getAuthFailureCountSuspend()
-
-                                    if (newAuthFailureCount >= MAX_AUTH_FAILURES) {
-                                        preferences.edit {
-                                            putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
-                                        }
-
-                                        notifyCredentialIssue(newAuthFailureCount)
-
-                                        return@withContext Result.failure(
-                                            workDataOf("error_reason" to "CREDENTIAL_ISSUE")
-                                        )
-                                    }
-                                }
-
-                                processedAllReports = false
-                            }
-                            is SubmissionResult.TransientError -> {
-                                locationReportDao.incrementSubmissionAttempts(report.id)
-                                continueSubmission = false
-                                processedAllReports = false
-                            }
-                        }
-                    }
-
-                    if (continueSubmission) {
-                        reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
-                    }
-                }
-
-                // Cleanup old reports
-                val sevenDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
-                locationReportDao.deleteOldSubmittedReports(sevenDaysAgo)
-
-                return@withContext if (processedAllReports) {
-                    Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
-                } else {
-                    Result.retry()
-                }
-            } catch (e: Exception) {
-                Log.e("BatchSubmissionWorker", "Error submitting reports", e)
-                return@withContext Result.retry()
-            }
+          }
         }
 
-    private fun notifyCredentialIssue(failureCount: Int) {
-        val notificationManager =
-            applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        return true
+      } catch (e: IOException) {
+        Log.e("SubmissionWorker", "Failed to export reports", e)
+        return false
+      }
+    }
+  }
 
-        // Create a PendingIntent for Settings
-        val settingsIntent =
-            Intent(applicationContext, SettingsActivity::class.java).apply {
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+  override suspend fun doWork(): Result =
+      withContext(Dispatchers.IO) {
+        if (preferences.getBoolean(PREF_SUBMISSIONS_BLOCKED, false)) {
+          Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
+          return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
+        }
+
+        val authFailureCount = locationReportDao.getAuthFailureCountSuspend()
+        if (authFailureCount >= MAX_AUTH_FAILURES) {
+          preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+          notifyCredentialIssue(authFailureCount)
+          return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
+        }
+
+        try {
+          var reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
+          var processedAllReports = true
+          var continueSubmission = true
+
+          while (continueSubmission && reports.isNotEmpty()) {
+            for (report in reports) {
+              when (val result = submitSingleReport(report)) {
+                is SubmissionResult.Success -> {
+                  locationReportDao.markAsSubmitted(
+                      report.id,
+                      System.currentTimeMillis(),
+                  )
+                }
+                is SubmissionResult.PermanentError -> {
+                  locationReportDao.markAsPermanentlyFailed(
+                      report.id,
+                      "${result.errorCode}: ${result.errorMessage}",
+                  )
+
+                  if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                    val newAuthFailureCount = locationReportDao.getAuthFailureCountSuspend()
+
+                    if (newAuthFailureCount >= MAX_AUTH_FAILURES) {
+                      preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+
+                      notifyCredentialIssue(newAuthFailureCount)
+
+                      return@withContext Result.failure(
+                          workDataOf("error_reason" to "CREDENTIAL_ISSUE")
+                      )
+                    }
+                  }
+
+                  processedAllReports = false
+                }
+                is SubmissionResult.TransientError -> {
+                  locationReportDao.incrementSubmissionAttempts(report.id)
+                  continueSubmission = false
+                  processedAllReports = false
+                }
+              }
             }
-        val settingsPendingIntent =
-            PendingIntent.getActivity(
-                applicationContext,
-                0,
-                settingsIntent,
-                PendingIntent.FLAG_IMMUTABLE,
+
+            if (continueSubmission) {
+              reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
+            }
+          }
+
+          // Cleanup old reports
+          val sevenDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
+          locationReportDao.deleteOldSubmittedReports(sevenDaysAgo)
+
+          return@withContext if (processedAllReports) {
+            Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
+          } else {
+            Result.retry()
+          }
+        } catch (e: Exception) {
+          Log.e("BatchSubmissionWorker", "Error submitting reports", e)
+          return@withContext Result.retry()
+        }
+      }
+
+  private fun notifyCredentialIssue(failureCount: Int) {
+    val notificationManager =
+        applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+    // Create a PendingIntent for Settings
+    val settingsIntent =
+        Intent(applicationContext, SettingsActivity::class.java).apply {
+          flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+    val settingsPendingIntent =
+        PendingIntent.getActivity(
+            applicationContext,
+            0,
+            settingsIntent,
+            PendingIntent.FLAG_IMMUTABLE,
+        )
+
+    // Build notification with multiple actions
+    val builder =
+        NotificationCompat.Builder(applicationContext, "com.calindora.follow.default")
+            .setSmallIcon(R.drawable.ic_stat_notification)
+            .setContentTitle("Authentication Problem Detected")
+            .setContentText(
+                "$failureCount consecutive reports failed authentication. Please check your device key and secret."
             )
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(settingsPendingIntent)
+            .addAction(R.drawable.ic_stat_notification, "Check Settings", settingsPendingIntent)
+            .setAutoCancel(false)
 
-        // Build notification with multiple actions
-        val builder =
-            NotificationCompat.Builder(applicationContext, "com.calindora.follow.default")
-                .setSmallIcon(R.drawable.ic_stat_notification)
-                .setContentTitle("Authentication Problem Detected")
-                .setContentText(
-                    "$failureCount consecutive reports failed authentication. Please check your device key and secret."
-                )
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
-                .setContentIntent(settingsPendingIntent)
-                .addAction(R.drawable.ic_stat_notification, "Check Settings", settingsPendingIntent)
-                .setAutoCancel(false)
+    notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
+  }
 
-        notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
+  private fun formatSignature(signatureInput: String): String {
+    val secret = preferences.getString("preference_device_secret", "") ?: return ""
+
+    val mac = Mac.getInstance("HmacSHA256")
+    val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
+    mac.init(key)
+
+    val digest = mac.doFinal(signatureInput.toByteArray(Charsets.UTF_8))
+
+    return digest.joinToString("") { "%02x".format(it) }
+  }
+
+  private fun formatUrl(): String {
+    val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+    val url = preferences.getString("preference_url", "") ?: return ""
+    val key = preferences.getString("preference_device_key", "") ?: return ""
+    return String.format("%s/api/v1/devices/%s/reports", url, key)
+  }
+
+  private fun submitSingleReport(report: LocationReportEntity): SubmissionResult {
+    val url = formatUrl()
+
+    if (url.isEmpty()) {
+      return SubmissionResult.PermanentError(
+          HttpURLConnection.HTTP_UNAUTHORIZED,
+          "Missing API configuration",
+      )
     }
 
-    private fun formatSignature(signatureInput: String): String {
-        val secret = preferences.getString("preference_device_secret", "") ?: return ""
+    val signature = formatSignature(report.signatureInput)
+    var connection: HttpsURLConnection? = null
 
-        val mac = Mac.getInstance("HmacSHA256")
-        val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
-        mac.init(key)
+    return try {
+      connection = (URL(url)).openConnection() as? HttpsURLConnection
+      connection?.doInput = true
+      connection?.doOutput = true
+      connection?.connectTimeout = 10000
+      connection?.readTimeout = 10000
 
-        val digest = mac.doFinal(signatureInput.toByteArray(Charsets.UTF_8))
+      connection?.setRequestProperty("Content-Type", "application/json")
+      connection?.setRequestProperty("Accept", "application/json")
+      connection?.setRequestProperty("X-Signature", signature)
 
-        return digest.joinToString("") { "%02x".format(it) }
-    }
+      val out = OutputStreamWriter(connection?.outputStream)
+      out.write(report.body)
+      out.close()
 
-    private fun formatUrl(): String {
-        val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
-        val url = preferences.getString("preference_url", "") ?: return ""
-        val key = preferences.getString("preference_device_key", "") ?: return ""
-        return String.format("%s/api/v1/devices/%s/reports", url, key)
-    }
+      val responseCode = connection?.responseCode ?: -1
 
-    private fun submitSingleReport(report: LocationReportEntity): SubmissionResult {
-        val url = formatUrl()
+      when (responseCode) {
+        HttpURLConnection.HTTP_CREATED -> SubmissionResult.Success
 
-        if (url.isEmpty()) {
-            return SubmissionResult.PermanentError(
-                HttpURLConnection.HTTP_UNAUTHORIZED,
-                "Missing API configuration",
+        HttpURLConnection.HTTP_UNAUTHORIZED -> {
+          val errorMessage = connection?.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+
+          if (errorMessage.contains("invalid signature", ignoreCase = true)) {
+            SubmissionResult.PermanentError(
+                responseCode,
+                "Invalid signature for this report",
             )
+          } else {
+            SubmissionResult.PermanentError(responseCode, errorMessage)
+          }
         }
 
-        val signature = formatSignature(report.signatureInput)
-        var connection: HttpsURLConnection? = null
-
-        return try {
-            connection = (URL(url)).openConnection() as? HttpsURLConnection
-            connection?.doInput = true
-            connection?.doOutput = true
-            connection?.connectTimeout = 10000
-            connection?.readTimeout = 10000
-
-            connection?.setRequestProperty("Content-Type", "application/json")
-            connection?.setRequestProperty("Accept", "application/json")
-            connection?.setRequestProperty("X-Signature", signature)
-
-            val out = OutputStreamWriter(connection?.outputStream)
-            out.write(report.body)
-            out.close()
-
-            val responseCode = connection?.responseCode ?: -1
-
-            when (responseCode) {
-                HttpURLConnection.HTTP_CREATED -> SubmissionResult.Success
-
-                HttpURLConnection.HTTP_UNAUTHORIZED -> {
-                    val errorMessage =
-                        connection?.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
-
-                    if (errorMessage.contains("invalid signature", ignoreCase = true)) {
-                        SubmissionResult.PermanentError(
-                            responseCode,
-                            "Invalid signature for this report",
-                        )
-                    } else {
-                        SubmissionResult.PermanentError(responseCode, errorMessage)
-                    }
-                }
-
-                HttpURLConnection.HTTP_NOT_FOUND -> {
-                    SubmissionResult.PermanentError(responseCode, "Unknown API key")
-                }
-
-                in 500..599 -> SubmissionResult.TransientError(responseCode, "Server error")
-
-                else -> {
-                    SubmissionResult.TransientError(responseCode, "Unexpected error")
-                }
-            }
-        } catch (e: IOException) {
-            SubmissionResult.TransientError(-1, e.message ?: "Network error")
-        } finally {
-            connection?.disconnect()
+        HttpURLConnection.HTTP_NOT_FOUND -> {
+          SubmissionResult.PermanentError(responseCode, "Unknown API key")
         }
+
+        in 500..599 -> SubmissionResult.TransientError(responseCode, "Server error")
+
+        else -> {
+          SubmissionResult.TransientError(responseCode, "Unexpected error")
+        }
+      }
+    } catch (e: IOException) {
+      SubmissionResult.TransientError(-1, e.message ?: "Network error")
+    } finally {
+      connection?.disconnect()
     }
+  }
 }
