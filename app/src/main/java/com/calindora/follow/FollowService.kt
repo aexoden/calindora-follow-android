@@ -198,15 +198,13 @@ class FollowService : Service() {
     private fun startLocationUpdates() {
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
-        when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) -> {
-                locationManager?.requestLocationUpdates(
-                    LocationManager.GPS_PROVIDER,
-                    0L,
-                    0.0f,
-                    mLocationListener,
-                )
-            }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager?.requestLocationUpdates(
+                LocationManager.GPS_PROVIDER,
+                0L,
+                0.0f,
+                mLocationListener,
+            )
         }
     }
 
@@ -222,10 +220,8 @@ class FollowService : Service() {
 
         val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
-        when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) -> {
-                locationManager?.addNmeaListener(mNmeaListener, null)
-            }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            locationManager?.addNmeaListener(mNmeaListener, null)
         }
 
         return true

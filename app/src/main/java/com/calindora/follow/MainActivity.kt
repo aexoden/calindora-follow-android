@@ -209,16 +209,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun onButtonService(isChecked: Boolean) {
         if (isChecked) {
-            when (PackageManager.PERMISSION_GRANTED) {
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.ACCESS_FINE_LOCATION,
-                ) -> {
-                    startService()
-                }
-                else -> {
-                    mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
-                }
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                startService()
+            }
+            else {
+                mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
             }
         } else {
             if (serviceState.isBound) {
@@ -247,11 +242,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun checkNotificationPermission() {
-        when (PackageManager.PERMISSION_GRANTED) {
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) -> {}
-            else -> {
-                mRequestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-            }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            mRequestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 
