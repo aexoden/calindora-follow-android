@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 private const val UPDATE_INTERVAL = 5000
 
@@ -313,21 +314,15 @@ class FollowService : Service() {
          * Public Methods
          */
 
-        fun formatBody(): String {
-            val body = StringBuilder()
-
-            body.append("{")
-            body.append("\"timestamp\": \"").append(formatTimestamp(timestamp)).append("\",\n")
-            body.append("\"latitude\": \"").append(latitude).append("\",\n")
-            body.append("\"longitude\": \"").append(longitude).append("\",\n")
-            body.append("\"altitude\": \"").append(altitude).append("\",\n")
-            body.append("\"speed\": \"").append(speed).append("\",\n")
-            body.append("\"bearing\": \"").append(bearing).append("\",\n")
-            body.append("\"accuracy\": \"").append(accuracy).append("\"\n")
-            body.append("}")
-
-            return body.toString()
-        }
+        fun formatBody(): String = JSONObject().apply {
+            put("timestamp", formatTimestamp(timestamp))
+            put("latitude", latitude)
+            put("longitude", longitude)
+            put("altitude", altitude)
+            put("speed", speed)
+            put("bearing", bearing)
+            put("accuracy", accuracy)
+        }.toString()
 
         fun formatSignatureInput(): String {
             val input = StringBuilder()
