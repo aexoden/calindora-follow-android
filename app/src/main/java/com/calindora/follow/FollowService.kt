@@ -18,9 +18,12 @@ import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -28,6 +31,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 private const val UPDATE_INTERVAL = 5000
+
+private val LOG_FILE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
+private val BODY_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSxxx").withZone(ZoneOffset.UTC)
+private val SIGNATURE_TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx").withZone(ZoneOffset.UTC)
 
 class FollowService : Service() {
     private val mBinder = FollowBinder()
@@ -176,12 +183,11 @@ class FollowService : Service() {
         }
 
         try {
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.US)
-            val file = File(getExternalFilesDir("logs"), dateFormat.format(Date()) + ".log")
+            val file = File(getExternalFilesDir("logs"), LOG_FILE_FORMATTER.format(Instant.now()) + ".log")
             file.createNewFile()
 
             mNmeaLog = BufferedWriter(FileWriter(file))
-        } catch (e: IOException) {
+        } catch (_: IOException) {
             return false
         }
 
@@ -281,7 +287,7 @@ class FollowService : Service() {
      * Inner Classes
      */
 
-    inner class Report(private val location: Location) {
+    class Report(private val location: Location) {
         private val timestamp: Long
             get() = location.time
 
@@ -351,17 +357,9 @@ class FollowService : Service() {
             return output
         }
 
-        private fun formatTimestamp(timestamp: Long): String {
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS+00:00", Locale.US)
-            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
-            return dateFormat.format(Date(timestamp))
-        }
+        private fun formatTimestamp(timestamp: Long): String = BODY_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
 
-        private fun formatTimestampSignature(timestamp: Long): String {
-            val dateFormat = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss+00:00", Locale.US)
-            dateFormat.timeZone = TimeZone.getTimeZone("UTC")
-            return dateFormat.format(Date(timestamp))
-        }
+        private fun formatTimestampSignature(timestamp: Long): String = SIGNATURE_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
     }
 
     inner class FollowBinder : Binder() {

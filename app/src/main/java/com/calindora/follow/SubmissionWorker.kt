@@ -24,8 +24,9 @@ import java.io.IOException
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-import java.text.SimpleDateFormat
-import java.util.*
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -36,6 +37,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val CREDENTIAL_NOTIFICATION_ID = 38
+
+private val LOG_FILE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
 
 sealed class SubmissionResult {
     data object Success : SubmissionResult()
@@ -93,11 +96,10 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             try {
                 if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) return false
 
-                val dateFormat = SimpleDateFormat("yyyy-MM-dd-HHmmss", Locale.US)
                 val file =
                     File(
                         context.getExternalFilesDir("logs"),
-                        "failed_reports_${dateFormat.format(Date())}.log",
+                        "failed_reports_${LOG_FILE_FORMATTER.format(Instant.now())}.log",
                     )
 
                 withContext(Dispatchers.IO) {

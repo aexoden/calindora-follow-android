@@ -56,9 +56,14 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.preference.PreferenceManager
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import java.util.*
 
 private const val FEET_PER_METER = 3.2808399
+
+private val DISPLAY_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault())
 
 class MainActivity : AppCompatActivity() {
     private lateinit var locationViewModel: LocationViewModel
@@ -370,7 +375,7 @@ fun LocationStatusSection(locationData: Location?, lastSubmissionTime: Long, que
 
                 StatusRow(
                     label = stringResource(R.string.label_gps_time),
-                    value = String.format(locale, "%tc", locationData.time),
+                    value = DISPLAY_FORMATTER.format(Instant.ofEpochMilli(locationData.time)),
                 )
                 StatusRow(
                     label = stringResource(R.string.label_latitude),
@@ -574,7 +579,7 @@ fun ToggleButton(
 
 private fun formatSubmissionTime(timestamp: Long): String {
     return if (timestamp > 0) {
-        String.format("%tc", timestamp)
+        DISPLAY_FORMATTER.format(Instant.ofEpochMilli(timestamp))
     } else {
         "Never"
     }
