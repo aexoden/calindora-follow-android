@@ -60,7 +60,7 @@ class FollowService : Service() {
   private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
   private lateinit var locationReportDao: LocationReportDao
 
-  private var mNmeaLog: BufferedWriter? = null
+  private var nmeaLog: BufferedWriter? = null
 
   var tracking = false
 
@@ -185,7 +185,12 @@ class FollowService : Service() {
 
   @Suppress("UNUSED_PARAMETER")
   private fun logNmea(nmea: String, timestamp: Long) {
-    mNmeaLog?.write(nmea)
+    try {
+      nmeaLog?.write(nmea)
+    } catch (_: IOException) {
+      stopLogging()
+      logging = false
+    }
   }
 
   private fun prepareLog(): Boolean {
@@ -198,7 +203,7 @@ class FollowService : Service() {
           File(getExternalFilesDir("logs"), LOG_FILE_FORMATTER.format(Instant.now()) + ".log")
       file.createNewFile()
 
-      mNmeaLog = BufferedWriter(FileWriter(file))
+      nmeaLog = BufferedWriter(FileWriter(file))
     } catch (_: IOException) {
       return false
     }
@@ -247,7 +252,8 @@ class FollowService : Service() {
   private fun stopLogging() {
     val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
     locationManager?.removeNmeaListener(mNmeaListener)
-    mNmeaLog?.close()
+    nmeaLog?.close()
+    nmeaLog = null
   }
 
   private fun updateLocation(location: Location) {
