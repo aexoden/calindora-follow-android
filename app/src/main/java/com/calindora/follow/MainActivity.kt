@@ -7,9 +7,12 @@ import android.content.ServiceConnection
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.location.Location
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import android.provider.Settings
 import android.view.Menu
+import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
@@ -27,6 +30,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -39,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -79,6 +84,7 @@ class MainActivity : AppCompatActivity() {
       val credentialWarningVisible: Boolean = false,
       val isTrackingPending: Boolean = false,
       val isLoggingPending: Boolean = false,
+      val showLocationSettingsDialog: Boolean = false,
   )
 
   private val mConnection =
@@ -120,8 +126,33 @@ class MainActivity : AppCompatActivity() {
     }
   }
 
-  private val mRequestPermissionLauncher =
-      registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+  private val requestNotificationPermissionLauncher =
+      registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (!isGranted) {
+          Toast.makeText(
+                  this,
+                  "Notifications disabled. The service will still run reliably, but you won't see credential warnings if authentication fails.",
+                  Toast.LENGTH_LONG,
+              )
+              .show()
+        }
+      }
+
+  private val requestLocationPermissionLauncher =
+      registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+        if (isGranted) {
+          startService()
+        } else if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
+          Toast.makeText(
+                  this,
+                  "Location permission is required to share your location.",
+                  Toast.LENGTH_LONG,
+              )
+              .show()
+        } else {
+          serviceState = serviceState.copy(showLocationSettingsDialog = true)
+        }
+      }
 
   /*
    * Activity Methods
@@ -166,6 +197,14 @@ class MainActivity : AppCompatActivity() {
             isLoggingPending = serviceState.isLoggingPending,
             locationData = serviceState.location,
             credentialWarningVisible = serviceState.credentialWarningVisible,
+            showLocationSettingsDialog = serviceState.showLocationSettingsDialog,
+            onDismissLocationSettingsDialog = {
+              serviceState = serviceState.copy(showLocationSettingsDialog = false)
+            },
+            onOpenAppSettings = {
+              serviceState = serviceState.copy(showLocationSettingsDialog = false)
+              openAppSettings()
+            },
         )
       }
     }
@@ -181,6 +220,14 @@ class MainActivity : AppCompatActivity() {
     updateCredentialWarning()
     PreferenceManager.getDefaultSharedPreferences(this)
         .registerOnSharedPreferenceChangeListener(prefListener)
+
+    if (
+        serviceState.showLocationSettingsDialog &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+    ) {
+      serviceState = serviceState.copy(showLocationSettingsDialog = false)
+    }
   }
 
   override fun onPause() {
@@ -211,7 +258,7 @@ class MainActivity : AppCompatActivity() {
       ) {
         startService()
       } else {
-        mRequestPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
+        requestLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
       }
     } else {
       if (serviceState.isBound) {
@@ -244,7 +291,7 @@ class MainActivity : AppCompatActivity() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) !=
             PackageManager.PERMISSION_GRANTED
     ) {
-      mRequestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+      requestNotificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
   }
 
@@ -283,6 +330,15 @@ class MainActivity : AppCompatActivity() {
     Intent(this, FollowService::class.java).also { intent -> stopService(intent) }
   }
 
+  private fun openAppSettings() {
+    val intent =
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+          data = Uri.fromParts("package", packageName, null)
+          flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+    startActivity(intent)
+  }
+
   private fun updateCredentialWarning() {
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
     val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
@@ -308,6 +364,9 @@ fun MainScreen(
     isLoggingPending: Boolean,
     locationData: Location?,
     credentialWarningVisible: Boolean,
+    showLocationSettingsDialog: Boolean,
+    onDismissLocationSettingsDialog: () -> Unit,
+    onOpenAppSettings: () -> Unit,
 ) {
   var isDebugEnabled by remember { mutableStateOf(false) }
 
@@ -354,6 +413,24 @@ fun MainScreen(
           onForceSyncClick = onForceSyncClick,
       )
     }
+  }
+
+  if (showLocationSettingsDialog) {
+    AlertDialog(
+        onDismissRequest = onDismissLocationSettingsDialog,
+        title = { Text("Location Permission Required") },
+        text = {
+          Text(
+              "Calindora Follow needs location permission to share your location " +
+                  "Since the permission was permanently denied, you'll need to enable " +
+                  "it from system settings."
+          )
+        },
+        confirmButton = { TextButton(onClick = onOpenAppSettings) { Text("Open Settings") } },
+        dismissButton = {
+          TextButton(onClick = onDismissLocationSettingsDialog) { Text("Cancel") }
+        },
+    )
   }
 }
 
