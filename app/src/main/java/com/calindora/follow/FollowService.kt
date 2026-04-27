@@ -17,11 +17,7 @@ import android.os.Binder
 import android.os.Environment
 import android.os.IBinder
 import androidx.core.content.ContextCompat
-import androidx.work.BackoffPolicy
-import androidx.work.Constraints
 import androidx.work.ExistingWorkPolicy
-import androidx.work.NetworkType
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import java.io.BufferedWriter
 import java.io.File
@@ -32,7 +28,6 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -290,16 +285,12 @@ class FollowService : Service() {
   }
 
   private fun scheduleSubmissionWork() {
-    val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
-
-    val workRequest =
-        OneTimeWorkRequestBuilder<SubmissionWorker>()
-            .setConstraints(constraints)
-            .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30000, TimeUnit.MILLISECONDS)
-            .build()
-
     WorkManager.getInstance(this)
-        .enqueueUniqueWork("batch_submission", ExistingWorkPolicy.KEEP, workRequest)
+        .enqueueUniqueWork(
+            SubmissionWorker.UNIQUE_WORK_NAME,
+            ExistingWorkPolicy.KEEP,
+            SubmissionWorker.buildWorkRequest(),
+        )
   }
 
   /*

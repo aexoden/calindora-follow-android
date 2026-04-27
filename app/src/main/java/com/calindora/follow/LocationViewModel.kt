@@ -4,8 +4,6 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
 import kotlinx.coroutines.launch
 
@@ -25,12 +23,11 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
   }
 
   fun forceSubmission() {
-    val workRequest =
-        OneTimeWorkRequestBuilder<SubmissionWorker>()
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-            .build()
-
     WorkManager.getInstance(getApplication())
-        .enqueueUniqueWork("manual_sync", ExistingWorkPolicy.REPLACE, workRequest)
+        .enqueueUniqueWork(
+            SubmissionWorker.UNIQUE_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            SubmissionWorker.buildWorkRequest(expedited = true),
+        )
   }
 }

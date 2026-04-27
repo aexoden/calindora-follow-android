@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.ExistingWorkPolicy
-import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -197,13 +196,11 @@ class SettingsRepository(
               putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
             }
 
-            val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>().build()
-
             WorkManager.getInstance(context)
                 .enqueueUniqueWork(
-                    "settings_reset_retry",
+                    SubmissionWorker.UNIQUE_WORK_NAME,
                     ExistingWorkPolicy.REPLACE,
-                    workRequest,
+                    SubmissionWorker.buildWorkRequest(),
                 )
 
             true

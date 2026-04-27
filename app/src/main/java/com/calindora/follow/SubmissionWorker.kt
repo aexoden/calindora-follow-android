@@ -12,8 +12,12 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.edit
 import androidx.preference.PreferenceManager
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.NetworkType
+import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
@@ -71,16 +75,11 @@ class CredentialResetReceiver : BroadcastReceiver() {
           putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
         }
 
-        val workRequest =
-            OneTimeWorkRequestBuilder<SubmissionWorker>()
-                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-                .build()
-
         WorkManager.getInstance(context)
             .enqueueUniqueWork(
-                "manual_credential_retry",
+                SubmissionWorker.UNIQUE_WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
-                workRequest,
+                SubmissionWorker.buildWorkRequest(expedited = true),
             )
 
         val notificationManager =
@@ -103,6 +102,22 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     const val MAX_AUTH_FAILURES = 5
     const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
     const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
+    const val UNIQUE_WORK_NAME = "submission_work"
+    private const val BACKOFF_DELAY_MS = 30_000L
+
+    fun buildWorkRequest(expedited: Boolean = false): OneTimeWorkRequest {
+      val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
+
+      return OneTimeWorkRequestBuilder<SubmissionWorker>()
+          .setConstraints(constraints)
+          .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_DELAY_MS, TimeUnit.MILLISECONDS)
+          .apply {
+            if (expedited) {
+              setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+            }
+          }
+          .build()
+    }
 
     suspend fun exportFailedReports(context: Context): Boolean {
       val dao = AppDatabase.getInstance(context).locationReportDao()
