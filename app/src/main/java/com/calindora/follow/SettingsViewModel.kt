@@ -192,7 +192,10 @@ class SettingsRepository(
       runCatching {
             locationReportDao.resetPermanentlyFailedReports()
 
-            prefs.edit { putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false) }
+            prefs.edit {
+              putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+              putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
+            }
 
             val workRequest = OneTimeWorkRequestBuilder<SubmissionWorker>().build()
 

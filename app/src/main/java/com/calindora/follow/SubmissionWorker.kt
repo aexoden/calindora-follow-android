@@ -68,6 +68,7 @@ class CredentialResetReceiver : BroadcastReceiver() {
 
         PreferenceManager.getDefaultSharedPreferences(context).edit {
           putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+          putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
         }
 
         val workRequest =
@@ -101,6 +102,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     const val MAX_BATCH_SIZE = 50
     const val MAX_AUTH_FAILURES = 5
     const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
+    const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
 
     suspend fun exportFailedReports(context: Context): Boolean {
       val dao = AppDatabase.getInstance(context).locationReportDao()
@@ -152,7 +154,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
         }
 
-        val authFailureCount = locationReportDao.getAuthFailureCountSuspend()
+        val authFailureCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0)
         if (authFailureCount >= MAX_AUTH_FAILURES) {
           preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
           notifyCredentialIssue(authFailureCount)
@@ -172,6 +174,10 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       report.id,
                       System.currentTimeMillis(),
                   )
+
+                  if (preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) != 0) {
+                    preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) }
+                  }
                 }
                 is SubmissionResult.PermanentError -> {
                   locationReportDao.markAsPermanentlyFailed(
@@ -179,24 +185,23 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       "${result.errorCode}: ${result.errorMessage}",
                   )
 
+                  processedAllReports = false
+                }
+                is SubmissionResult.TransientError -> {
+                  locationReportDao.incrementSubmissionAttempts(report.id)
+
                   if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    val newAuthFailureCount = locationReportDao.getAuthFailureCountSuspend()
+                    val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
+                    preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount) }
 
-                    if (newAuthFailureCount >= MAX_AUTH_FAILURES) {
+                    if (newCount >= MAX_AUTH_FAILURES) {
                       preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
-
-                      notifyCredentialIssue(newAuthFailureCount)
-
+                      notifyCredentialIssue(newCount)
                       return@withContext Result.failure(
                           workDataOf("error_reason" to "CREDENTIAL_ISSUE")
                       )
                     }
                   }
-
-                  processedAllReports = false
-                }
-                is SubmissionResult.TransientError -> {
-                  locationReportDao.incrementSubmissionAttempts(report.id)
                   continueSubmission = false
                   processedAllReports = false
                 }
@@ -340,13 +345,20 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
         HttpURLConnection.HTTP_UNAUTHORIZED -> {
           val errorMessage = connection.readErrorBody()
 
+          // This block is a bit of a heuristic as the v1 API doesn't have a well-defined error
+          // response format.
           if (errorMessage.contains("invalid signature", ignoreCase = true)) {
+            // The server has our key but couldn't verify the signature, so the most likely result
+            // is a failure on either side in generating consistent input text. We treat this as
+            // a permanent error since it's almost certainly a bug on either side.
             SubmissionResult.PermanentError(
                 responseCode,
                 "Invalid signature for this report",
             )
           } else {
-            SubmissionResult.PermanentError(responseCode, errorMessage)
+            // The server otherwise rejected our credentials, which could be due to an incorrect
+            // secret or a temporary server issue.
+            SubmissionResult.TransientError(responseCode, errorMessage.ifEmpty { "Unauthorized" })
           }
         }
 
