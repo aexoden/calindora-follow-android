@@ -3,17 +3,28 @@ package com.calindora.follow
 import android.app.Application
 import android.content.Context
 import androidx.core.content.edit
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+
+private const val SAVE_DEBOUNCE_MS = 500L
 
 /** UI state for the Settings screen */
 data class SettingsUiState(
@@ -30,7 +41,8 @@ data class SettingsUiState(
 )
 
 /** ViewModel for the Settings screen */
-class SettingsViewModel(application: Application) : ViewModel() {
+@OptIn(FlowPreview::class)
+class SettingsViewModel(application: Application) : AndroidViewModel(application) {
   private val locationReportDao = AppDatabase.getInstance(application).locationReportDao()
   private val prefs = PreferenceManager.getDefaultSharedPreferences(application)
 
@@ -50,34 +62,76 @@ class SettingsViewModel(application: Application) : ViewModel() {
       )
   val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
+  private val _savedEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+  val savedEvents: SharedFlow<Unit> = _savedEvents.asSharedFlow()
+
   init {
+    // Auth failure count
     viewModelScope.launch {
       locationReportDao.getAuthFailureCount().collect { count ->
         _uiState.update { it.copy(authFailureCount = count) }
       }
     }
 
+    // Permanently failed report count
     viewModelScope.launch {
       locationReportDao.getPermanentlyFailedReportCount().collect { count ->
         _uiState.update { it.copy(failedReportCount = count) }
       }
     }
+
+    // Debounced save: service URL
+    viewModelScope.launch {
+      _uiState
+          .map { it.serviceUrl }
+          .distinctUntilChanged()
+          .drop(1)
+          .debounce(SAVE_DEBOUNCE_MS)
+          .collect { url ->
+            prefs.edit { putString("preference_url", url) }
+            _savedEvents.tryEmit(Unit)
+          }
+    }
+
+    // Debounced save: device key
+    viewModelScope.launch {
+      _uiState
+          .map { it.deviceKey }
+          .distinctUntilChanged()
+          .drop(1)
+          .debounce(SAVE_DEBOUNCE_MS)
+          .collect { key ->
+            prefs.edit { putString("preference_device_key", key) }
+            _savedEvents.tryEmit(Unit)
+          }
+    }
+
+    // Debounced save: device secret
+    viewModelScope.launch {
+      _uiState
+          .map { it.deviceSecret }
+          .distinctUntilChanged()
+          .drop(1)
+          .debounce(SAVE_DEBOUNCE_MS)
+          .collect { secret ->
+            prefs.edit { putString("preference_device_secret", secret) }
+            _savedEvents.tryEmit(Unit)
+          }
+    }
   }
 
-  // Settings update functions
+  // Settings update functions - these only update in-memory state
+  // The debounced collectors in init will handle saving to SharedPreferences
   fun updateServiceUrl(url: String) {
     _uiState.update { it.copy(serviceUrl = url) }
-    prefs.edit { putString("preference_url", url) }
   }
 
   fun updateDeviceKey(key: String) {
     _uiState.update { it.copy(deviceKey = key) }
-    prefs.edit { putString("preference_device_key", key) }
   }
 
   fun updateDeviceSecret(secret: String) {
     _uiState.update { it.copy(deviceSecret = secret) }
-    prefs.edit { putString("preference_device_secret", secret) }
   }
 
   fun updateCredentialBlockedStatus(isBlocked: Boolean) {

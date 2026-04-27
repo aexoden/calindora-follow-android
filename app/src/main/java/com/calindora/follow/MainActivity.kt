@@ -421,7 +421,7 @@ fun MainScreen(
         title = { Text("Location Permission Required") },
         text = {
           Text(
-              "Calindora Follow needs location permission to share your location " +
+              "Calindora Follow needs location permission to share your location. " +
                   "Since the permission was permanently denied, you'll need to enable " +
                   "it from system settings."
           )

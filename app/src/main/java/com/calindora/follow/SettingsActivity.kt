@@ -3,16 +3,28 @@ package com.calindora.follow
 import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Toast
+import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -34,12 +46,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -47,6 +63,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.preference.PreferenceManager
+import kotlinx.coroutines.delay
+
+private const val SAVED_INDICATOR_VISIBLE_MS = 1500L
 
 class SettingsActivity : AppCompatActivity() {
   private val viewModel: SettingsViewModel by viewModels { SettingsViewModelFactory(application) }
@@ -64,11 +83,28 @@ class SettingsActivity : AppCompatActivity() {
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel) {
   val context = LocalContext.current
+  val activity = LocalActivity.current
   val scrollState = rememberScrollState()
 
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-  // Display toast messages for operations
+  // Focus chain: URL -> Key -> Secret
+  val urlFocus = remember { FocusRequester() }
+  val keyFocus = remember { FocusRequester() }
+  val secretFocus = remember { FocusRequester() }
+  val keyboardController = LocalSoftwareKeyboardController.current
+
+  // Briefly flash a "Saved" indicator when a debounced save commits
+  var savedIndicatorVisible by remember { mutableStateOf(false) }
+  LaunchedEffect(viewModel) {
+    viewModel.savedEvents.collect {
+      savedIndicatorVisible = true
+      delay(SAVED_INDICATOR_VISIBLE_MS)
+      savedIndicatorVisible = false
+    }
+  }
+
+  // Display toast messages for one-shot operations
   LaunchedEffect(uiState.toastMessage) {
     uiState.toastMessage?.let {
       Toast.makeText(context, it, Toast.LENGTH_LONG).show()
@@ -76,7 +112,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     }
   }
 
-  // Register preference change listener
+  // Keep the credential-blocked banner state in sync
   val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
   val prefListener = remember {
     SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
@@ -93,50 +129,100 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     onDispose { prefs.unregisterOnSharedPreferenceChangeListener(prefListener) }
   }
 
-  Scaffold(topBar = { TopAppBar(title = { Text(stringResource(R.string.action_settings)) }) }) {
-      paddingValues ->
+  Scaffold(
+      topBar = {
+        TopAppBar(
+            title = { Text(stringResource(R.string.action_settings)) },
+            navigationIcon = {
+              IconButton(onClick = { activity?.finish() }) {
+                Icon(
+                    painter = painterResource(R.drawable.arrow_back_24px),
+                    contentDescription = "Back",
+                )
+              }
+            },
+            actions = { SavedIndicator(visible = savedIndicatorVisible) },
+        )
+      }
+  ) { paddingValues ->
     Column(
         modifier =
-            Modifier.padding(paddingValues).padding(16.dp).fillMaxSize().verticalScroll(scrollState)
+            Modifier.padding(paddingValues)
+                .padding(16.dp)
+                .fillMaxSize()
+                .imePadding()
+                .verticalScroll(scrollState)
     ) {
-      val urlError =
-          when {
-            uiState.serviceUrl.isBlank() -> "URL required"
-            !uiState.serviceUrl.startsWith("https://") -> "URL must use HTTPS"
-            else -> null
-          }
+      // Connection settings
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+          Text(
+              text = "Connection",
+              style = MaterialTheme.typography.titleMedium,
+              color = MaterialTheme.colorScheme.primary,
+          )
 
-      // Service URL
-      SettingsTextFieldItem(
-          title = stringResource(R.string.preference_url),
-          value = uiState.serviceUrl,
-          onValueChanged = viewModel::updateServiceUrl,
-          isError = urlError != null,
-          errorText = urlError,
-      )
+          Spacer(modifier = Modifier.height(12.dp))
 
-      Spacer(modifier = Modifier.height(16.dp))
+          SettingsTextFieldItem(
+              label = stringResource(R.string.preference_url),
+              value = uiState.serviceUrl,
+              onValueChange = viewModel::updateServiceUrl,
+              focusRequester = urlFocus,
+              keyboardOptions =
+                  KeyboardOptions(
+                      keyboardType = KeyboardType.Uri,
+                      imeAction = ImeAction.Next,
+                      autoCorrectEnabled = false,
+                  ),
+              keyboardActions = KeyboardActions(onNext = { keyFocus.requestFocus() }),
+              validate = { value ->
+                when {
+                  value.isBlank() -> "URL required"
+                  !value.startsWith("https://") -> "URL must use HTTPS"
+                  else -> null
+                }
+              },
+          )
 
-      // Device Key
-      SettingsTextFieldItem(
-          title = stringResource(R.string.preference_device_key),
-          value = uiState.deviceKey,
-          onValueChanged = viewModel::updateDeviceKey,
-      )
+          Spacer(modifier = Modifier.height(12.dp))
 
-      Spacer(modifier = Modifier.height(16.dp))
+          SettingsTextFieldItem(
+              label = stringResource(R.string.preference_device_key),
+              value = uiState.deviceKey,
+              onValueChange = viewModel::updateDeviceKey,
+              focusRequester = keyFocus,
+              keyboardOptions =
+                  KeyboardOptions(
+                      keyboardType = KeyboardType.Ascii,
+                      imeAction = ImeAction.Next,
+                      autoCorrectEnabled = false,
+                  ),
+              keyboardActions = KeyboardActions(onNext = { secretFocus.requestFocus() }),
+          )
 
-      // Device Secret
-      SettingsTextFieldItem(
-          title = stringResource(R.string.preference_device_secret),
-          value = uiState.deviceSecret,
-          onValueChanged = viewModel::updateDeviceSecret,
-          isPassword = true,
-      )
+          Spacer(modifier = Modifier.height(12.dp))
+
+          SettingsTextFieldItem(
+              label = stringResource(R.string.preference_device_secret),
+              value = uiState.deviceSecret,
+              onValueChange = viewModel::updateDeviceSecret,
+              focusRequester = secretFocus,
+              isPassword = true,
+              keyboardOptions =
+                  KeyboardOptions(
+                      keyboardType = KeyboardType.Password,
+                      imeAction = ImeAction.Done,
+                      autoCorrectEnabled = false,
+                  ),
+              keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+          )
+        }
+      }
 
       Spacer(modifier = Modifier.height(24.dp))
 
-      // Status Category
+      // Status section
       Text(
           text = stringResource(R.string.preference_category_status),
           style = MaterialTheme.typography.titleMedium,
@@ -145,46 +231,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      // Credential Status
-      Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-          Text(
-              text = stringResource(R.string.preference_credential_status),
-              style = MaterialTheme.typography.titleSmall,
-          )
-          Spacer(modifier = Modifier.height(4.dp))
-
-          when {
-            uiState.isCredentialBlocked -> {
-              Text(
-                  text = stringResource(R.string.preference_credential_status_blocked),
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = Color.Red,
-              )
-            }
-
-            uiState.authFailureCount > 0 -> {
-              Text(
-                  text = "${uiState.authFailureCount} reports with authentication failures",
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = Color.DarkGray,
-              )
-            }
-
-            else -> {
-              Text(
-                  text = stringResource(R.string.preference_credential_status_ok),
-                  style = MaterialTheme.typography.bodyMedium,
-                  color = Color.Green,
-              )
-            }
-          }
-        }
-      }
+      CredentialStatusCard(
+          isBlocked = uiState.isCredentialBlocked,
+          authFailureCount = uiState.authFailureCount,
+      )
 
       Spacer(modifier = Modifier.height(16.dp))
 
-      // Reset Credential Block Button (visible if blocked or enough auth failures)
+      // Reset Credential Block (visible if blocked or enough auth failures)
       if (
           uiState.isCredentialBlocked ||
               uiState.authFailureCount >= SubmissionWorker.MAX_AUTH_FAILURES
@@ -201,12 +255,13 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         Text(
             text = stringResource(R.string.preference_reset_credential_block_summary),
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
       }
 
-      // Export Failed Reports Button (visible if any failed reports)
+      // Failed report management
       if (uiState.failedReportCount > 0) {
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -222,17 +277,21 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         Text(
             text = "Export ${uiState.failedReportCount} failed reports to log file",
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Delete Failed Reports Button
         Button(
             onClick = { viewModel.showDeleteDialog() },
             modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+            colors =
+                ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError,
+                ),
         ) {
           Text("Delete Failed Reports")
         }
@@ -242,6 +301,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         Text(
             text = "Permanently delete ${uiState.failedReportCount} failed reports",
             style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(),
         )
@@ -256,7 +316,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         title = { Text("Reset Authentication Block") },
         text = {
           Text(
-              "This will reset all authentication failures and re-enable submissions. Make sure you've fixed any credential issues before proceeding."
+              "This will reset all authentication failures and re-enable submissions. " +
+                  "Make sure you've fixed any credential issues before proceeding."
           )
         },
         confirmButton = {
@@ -294,7 +355,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         title = { Text("Delete Failed Reports") },
         text = {
           Text(
-              "This will permanently delete ${uiState.failedReportCount} failed reports. This action cannot be undone."
+              "This will permanently delete ${uiState.failedReportCount} failed reports. " +
+                  "This action cannot be undone."
           )
         },
         confirmButton = {
@@ -308,61 +370,108 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 }
 
 @Composable
-fun SettingsTextFieldItem(
-    title: String,
-    value: String,
-    onValueChanged: (String) -> Unit,
-    isPassword: Boolean = false,
-    isError: Boolean = false,
-    errorText: String? = null,
-) {
-  Column {
-    Text(
-        text = title,
-        style = MaterialTheme.typography.bodyLarge,
-        modifier = Modifier.padding(bottom = 4.dp),
-    )
-
-    if (isPassword) {
-      var passwordVisible by remember { mutableStateOf(false) }
-
-      OutlinedTextField(
-          value = value,
-          onValueChange = onValueChanged,
-          modifier = Modifier.fillMaxWidth(),
-          singleLine = true,
-          visualTransformation =
-              if (passwordVisible) {
-                VisualTransformation.None
-              } else {
-                PasswordVisualTransformation()
-              },
-          trailingIcon = {
-            val image =
-                if (passwordVisible) {
-                  ImageVector.vectorResource(R.drawable.baseline_visibility_24)
-                } else {
-                  ImageVector.vectorResource(R.drawable.baseline_visibility_off_24)
-                }
-
-            val description = if (passwordVisible) "Hide password" else "Show password"
-
-            IconButton(onClick = { passwordVisible = !passwordVisible }) {
-              Icon(imageVector = image, contentDescription = description)
-            }
-          },
-          isError = isError,
-          supportingText = errorText?.takeIf { isError }?.let { { Text(it) } },
+private fun SavedIndicator(visible: Boolean) {
+  AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier.padding(end = 12.dp),
+    ) {
+      Icon(
+          painter = painterResource(R.drawable.check_24px),
+          contentDescription = null,
+          tint = MaterialTheme.colorScheme.primary,
+          modifier = Modifier.size(18.dp),
       )
-    } else {
-      OutlinedTextField(
-          value = value,
-          onValueChange = onValueChanged,
-          modifier = Modifier.fillMaxWidth(),
-          singleLine = true,
-          isError = isError,
-          supportingText = errorText?.takeIf { isError }?.let { { Text(it) } },
+      Text(
+          text = "Saved",
+          style = MaterialTheme.typography.labelMedium,
+          color = MaterialTheme.colorScheme.primary,
       )
     }
   }
+}
+
+@Composable
+private fun CredentialStatusCard(isBlocked: Boolean, authFailureCount: Int) {
+  Card(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Text(
+          text = stringResource(R.string.preference_credential_status),
+          style = MaterialTheme.typography.titleSmall,
+      )
+      Spacer(modifier = Modifier.height(4.dp))
+
+      val (text, color) =
+          when {
+            isBlocked ->
+                stringResource(R.string.preference_credential_status_blocked) to
+                    MaterialTheme.colorScheme.error
+            authFailureCount > 0 ->
+                "$authFailureCount reports with authentication failures" to
+                    MaterialTheme.colorScheme.onSurfaceVariant
+            else ->
+                stringResource(R.string.preference_credential_status_ok) to
+                    MaterialTheme.colorScheme.onSurface
+          }
+
+      Text(text = text, style = MaterialTheme.typography.bodyMedium, color = color)
+    }
+  }
+}
+
+@Composable
+fun SettingsTextFieldItem(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    isPassword: Boolean = false,
+    focusRequester: FocusRequester? = null,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    validate: (String) -> String? = { null },
+) {
+  var passwordVisible by remember { mutableStateOf(false) }
+  val interactionSource = remember { MutableInteractionSource() }
+  val isFocused by interactionSource.collectIsFocusedAsState()
+  val error = if (!isFocused) validate(value) else null
+
+  val fieldModifier =
+      modifier.fillMaxWidth().let {
+        if (focusRequester != null) it.focusRequester(focusRequester) else it
+      }
+
+  OutlinedTextField(
+      value = value,
+      onValueChange = onValueChange,
+      label = { Text(label) },
+      modifier = fieldModifier,
+      interactionSource = interactionSource,
+      singleLine = true,
+      visualTransformation =
+          if (isPassword && !passwordVisible) PasswordVisualTransformation()
+          else VisualTransformation.None,
+      trailingIcon =
+          if (isPassword) {
+            {
+              val painter =
+                  if (passwordVisible) {
+                    painterResource(R.drawable.visibility_24px)
+                  } else {
+                    painterResource(R.drawable.visibility_off_24px)
+                  }
+
+              val description = if (passwordVisible) "Hide password" else "Show password"
+
+              IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                Icon(painter = painter, contentDescription = description)
+              }
+            }
+          } else null,
+      keyboardOptions = keyboardOptions,
+      keyboardActions = keyboardActions,
+      isError = error != null,
+      supportingText = error?.let { { Text(it) } },
+  )
 }
