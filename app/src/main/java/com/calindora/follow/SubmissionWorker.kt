@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -37,7 +38,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val CREDENTIAL_NOTIFICATION_ID = 38
-private const val DEFAULT_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.default"
+private const val CREDENTIAL_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.credentials"
 private const val DEFAULT_SERVICE_URL = "https://follow.calindora.com"
 
 private val LOG_FILE_FORMATTER =
@@ -141,6 +142,9 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     }
   }
 
+  private fun HttpURLConnection.readErrorBody(): String =
+      errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+
   override suspend fun doWork(): Result =
       withContext(Dispatchers.IO) {
         if (preferences.getBoolean(PREF_SUBMISSIONS_BLOCKED, false)) {
@@ -240,7 +244,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
     // Build notification with multiple actions
     val builder =
-        NotificationCompat.Builder(applicationContext, DEFAULT_NOTIFICATION_CHANNEL_ID)
+        NotificationCompat.Builder(applicationContext, CREDENTIAL_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle("Authentication Problem Detected")
             .setContentText(
@@ -257,7 +261,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
   private fun ensureNotificationChannel(notificationManager: NotificationManager) {
     val channel =
         NotificationChannel(
-                DEFAULT_NOTIFICATION_CHANNEL_ID,
+                CREDENTIAL_NOTIFICATION_CHANNEL_ID,
                 applicationContext.getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             )
@@ -289,10 +293,15 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     }
 
     return runCatching {
-          val submissionUrl = URL("$baseUrl/api/v1/devices/$key/reports")
+          val encodedKey = Uri.encode(key)
+          val submissionUrl = URL("$baseUrl/api/v1/devices/$encodedKey/reports")
 
-          if (submissionUrl.protocol != "https" && submissionUrl.protocol != "http") {
-            return null
+          if (submissionUrl.protocol != "https") {
+            return@runCatching null
+          }
+
+          if (submissionUrl.host.isNullOrEmpty()) {
+            return@runCatching null
           }
 
           SubmissionConfig(submissionUrl.toString(), secret)
@@ -329,7 +338,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
         HttpURLConnection.HTTP_CREATED -> SubmissionResult.Success
 
         HttpURLConnection.HTTP_UNAUTHORIZED -> {
-          val errorMessage = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+          val errorMessage = connection.readErrorBody()
 
           if (errorMessage.contains("invalid signature", ignoreCase = true)) {
             SubmissionResult.PermanentError(
@@ -342,12 +351,17 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
         }
 
         HttpURLConnection.HTTP_NOT_FOUND -> {
+          connection.readErrorBody()
           SubmissionResult.PermanentError(responseCode, "Unknown API key")
         }
 
-        in 500..599 -> SubmissionResult.TransientError(responseCode, "Server error")
+        in 500..599 -> {
+          connection.readErrorBody()
+          SubmissionResult.TransientError(responseCode, "Server error")
+        }
 
         else -> {
+          connection.readErrorBody()
           SubmissionResult.TransientError(responseCode, "Unexpected error")
         }
       }
