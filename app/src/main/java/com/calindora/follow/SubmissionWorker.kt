@@ -44,7 +44,6 @@ import kotlinx.coroutines.withContext
 
 private const val CREDENTIAL_NOTIFICATION_ID = 38
 private const val CREDENTIAL_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.credentials"
-private const val DEFAULT_SERVICE_URL = "https://follow.calindora.com"
 
 private val LOG_FILE_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
@@ -322,9 +321,13 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
   private fun getSubmissionConfig(): ConfigResult {
     val baseUrl =
-        preferences.getString("preference_url", DEFAULT_SERVICE_URL)?.trim()?.trimEnd('/').orEmpty()
-    val key = preferences.getString("preference_device_key", "")?.trim().orEmpty()
-    val secret = preferences.getString("preference_device_secret", "")?.trim().orEmpty()
+        preferences
+            .getString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL)
+            ?.trim()
+            ?.trimEnd('/')
+            .orEmpty()
+    val key = preferences.getString(Preferences.KEY_DEVICE_KEY, "")?.trim().orEmpty()
+    val secret = preferences.getString(Preferences.KEY_DEVICE_SECRET, "")?.trim().orEmpty()
 
     if (baseUrl.isEmpty()) return ConfigResult.Invalid("Service URL is not configured")
     if (key.isEmpty()) return ConfigResult.Invalid("Device key is not configured")

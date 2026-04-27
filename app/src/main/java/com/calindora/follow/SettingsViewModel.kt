@@ -52,10 +52,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
       MutableStateFlow(
           SettingsUiState(
               serviceUrl =
-                  prefs.getString("preference_url", "https://follow.calindora.com")
-                      ?: "https://follow.calindora.com",
-              deviceKey = prefs.getString("preference_device_key", "") ?: "",
-              deviceSecret = prefs.getString("preference_device_secret", "") ?: "",
+                  prefs.getString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL)
+                      ?: Preferences.DEFAULT_SERVICE_URL,
+              deviceKey = prefs.getString(Preferences.KEY_DEVICE_KEY, "") ?: "",
+              deviceSecret = prefs.getString(Preferences.KEY_DEVICE_SECRET, "") ?: "",
               isCredentialBlocked =
                   prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false),
           )
@@ -66,6 +66,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
   val savedEvents: SharedFlow<Unit> = _savedEvents.asSharedFlow()
 
   init {
+    // Persist the default service URL on first run
+    if (!prefs.contains(Preferences.KEY_SERVICE_URL)) {
+      prefs.edit { putString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL) }
+    }
+
     // Auth failure count
     viewModelScope.launch {
       locationReportDao.getAuthFailureCount().collect { count ->
@@ -88,7 +93,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(SAVE_DEBOUNCE_MS)
           .collect { url ->
-            prefs.edit { putString("preference_url", url) }
+            prefs.edit { putString(Preferences.KEY_SERVICE_URL, url) }
             _savedEvents.tryEmit(Unit)
           }
     }
@@ -101,7 +106,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(SAVE_DEBOUNCE_MS)
           .collect { key ->
-            prefs.edit { putString("preference_device_key", key) }
+            prefs.edit { putString(Preferences.KEY_DEVICE_KEY, key) }
             _savedEvents.tryEmit(Unit)
           }
     }
@@ -114,7 +119,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(SAVE_DEBOUNCE_MS)
           .collect { secret ->
-            prefs.edit { putString("preference_device_secret", secret) }
+            prefs.edit { putString(Preferences.KEY_DEVICE_SECRET, secret) }
             _savedEvents.tryEmit(Unit)
           }
     }
