@@ -1,5 +1,6 @@
 package com.calindora.follow
 
+import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -36,6 +37,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val CREDENTIAL_NOTIFICATION_ID = 38
+private const val DEFAULT_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.default"
 private const val DEFAULT_SERVICE_URL = "https://follow.calindora.com"
 
 private val LOG_FILE_FORMATTER =
@@ -221,6 +223,8 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     val notificationManager =
         applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
+    ensureNotificationChannel(notificationManager)
+
     // Create a PendingIntent for Settings
     val settingsIntent =
         Intent(applicationContext, SettingsActivity::class.java).apply {
@@ -236,7 +240,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
     // Build notification with multiple actions
     val builder =
-        NotificationCompat.Builder(applicationContext, "com.calindora.follow.default")
+        NotificationCompat.Builder(applicationContext, DEFAULT_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle("Authentication Problem Detected")
             .setContentText(
@@ -248,6 +252,20 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             .setAutoCancel(false)
 
     notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
+  }
+
+  private fun ensureNotificationChannel(notificationManager: NotificationManager) {
+    val channel =
+        NotificationChannel(
+                DEFAULT_NOTIFICATION_CHANNEL_ID,
+                applicationContext.getString(R.string.notification_channel_name),
+                NotificationManager.IMPORTANCE_HIGH,
+            )
+            .apply {
+              description = applicationContext.getString(R.string.notification_channel_description)
+            }
+
+    notificationManager.createNotificationChannel(channel)
   }
 
   private fun formatSignature(signatureInput: String, secret: String): String {
