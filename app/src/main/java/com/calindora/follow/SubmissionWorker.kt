@@ -56,29 +56,35 @@ private data class SubmissionConfig(
 
 class CredentialResetReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
+    val pendingResult = goAsync()
+
     CoroutineScope(Dispatchers.IO).launch {
-      val dao = AppDatabase.getInstance(context).locationReportDao()
-      dao.resetPermanentlyFailedReports()
+      try {
+        val dao = AppDatabase.getInstance(context).locationReportDao()
+        dao.resetPermanentlyFailedReports()
 
-      PreferenceManager.getDefaultSharedPreferences(context).edit {
-        putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+        PreferenceManager.getDefaultSharedPreferences(context).edit {
+          putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+        }
+
+        val workRequest =
+            OneTimeWorkRequestBuilder<SubmissionWorker>()
+                .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
+                .build()
+
+        WorkManager.getInstance(context)
+            .enqueueUniqueWork(
+                "manual_credential_retry",
+                ExistingWorkPolicy.REPLACE,
+                workRequest,
+            )
+
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
+      } finally {
+        pendingResult.finish()
       }
-
-      val workRequest =
-          OneTimeWorkRequestBuilder<SubmissionWorker>()
-              .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
-              .build()
-
-      WorkManager.getInstance(context)
-          .enqueueUniqueWork(
-              "manual_credential_retry",
-              ExistingWorkPolicy.REPLACE,
-              workRequest,
-          )
-
-      val notificationManager =
-          context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-      notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
     }
   }
 }
