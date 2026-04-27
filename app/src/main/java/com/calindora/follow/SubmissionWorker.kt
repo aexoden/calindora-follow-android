@@ -30,13 +30,13 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
-import javax.net.ssl.HttpsURLConnection
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private const val CREDENTIAL_NOTIFICATION_ID = 38
+private const val DEFAULT_SERVICE_URL = "https://follow.calindora.com"
 
 private val LOG_FILE_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
@@ -48,6 +48,11 @@ sealed class SubmissionResult {
 
   data class PermanentError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
 }
+
+private data class SubmissionConfig(
+    val url: String,
+    val secret: String,
+)
 
 class CredentialResetReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
@@ -239,9 +244,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
   }
 
-  private fun formatSignature(signatureInput: String): String {
-    val secret = preferences.getString("preference_device_secret", "") ?: return ""
-
+  private fun formatSignature(signatureInput: String, secret: String): String {
     val mac = Mac.getInstance("HmacSHA256")
     val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
     mac.init(key)
@@ -251,48 +254,58 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     return digest.joinToString("") { "%02x".format(it) }
   }
 
-  private fun formatUrl(): String {
-    val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
-    val url = preferences.getString("preference_url", "") ?: return ""
-    val key = preferences.getString("preference_device_key", "") ?: return ""
-    return String.format("%s/api/v1/devices/%s/reports", url, key)
+  private fun getSubmissionConfig(): SubmissionConfig? {
+    val baseUrl =
+        preferences.getString("preference_url", DEFAULT_SERVICE_URL)?.trim()?.trimEnd('/').orEmpty()
+    val key = preferences.getString("preference_device_key", "")?.trim().orEmpty()
+    val secret = preferences.getString("preference_device_secret", "")?.trim().orEmpty()
+
+    if (baseUrl.isEmpty() || key.isEmpty() || secret.isEmpty()) {
+      return null
+    }
+
+    return runCatching {
+          val submissionUrl = URL("$baseUrl/api/v1/devices/$key/reports")
+
+          if (submissionUrl.protocol != "https" && submissionUrl.protocol != "http") {
+            return null
+          }
+
+          SubmissionConfig(submissionUrl.toString(), secret)
+        }
+        .getOrNull()
   }
 
   private fun submitSingleReport(report: LocationReportEntity): SubmissionResult {
-    val url = formatUrl()
+    val submissionConfig =
+        getSubmissionConfig()
+            ?: return SubmissionResult.PermanentError(
+                HttpURLConnection.HTTP_BAD_REQUEST,
+                "Missing or invalid API configuration",
+            )
 
-    if (url.isEmpty()) {
-      return SubmissionResult.PermanentError(
-          HttpURLConnection.HTTP_UNAUTHORIZED,
-          "Missing API configuration",
-      )
-    }
-
-    val signature = formatSignature(report.signatureInput)
-    var connection: HttpsURLConnection? = null
+    val signature = formatSignature(report.signatureInput, submissionConfig.secret)
+    var connection: HttpURLConnection? = null
 
     return try {
-      connection = (URL(url)).openConnection() as? HttpsURLConnection
-      connection?.doInput = true
-      connection?.doOutput = true
-      connection?.connectTimeout = 10000
-      connection?.readTimeout = 10000
+      connection = (URL(submissionConfig.url)).openConnection() as HttpURLConnection
+      connection.doInput = true
+      connection.doOutput = true
+      connection.requestMethod = "POST"
+      connection.connectTimeout = 10000
+      connection.readTimeout = 10000
 
-      connection?.setRequestProperty("Content-Type", "application/json")
-      connection?.setRequestProperty("Accept", "application/json")
-      connection?.setRequestProperty("X-Signature", signature)
+      connection.setRequestProperty("Content-Type", "application/json")
+      connection.setRequestProperty("Accept", "application/json")
+      connection.setRequestProperty("X-Signature", signature)
 
-      val out = OutputStreamWriter(connection?.outputStream)
-      out.write(report.body)
-      out.close()
+      OutputStreamWriter(connection.outputStream).use { out -> out.write(report.body) }
 
-      val responseCode = connection?.responseCode ?: -1
-
-      when (responseCode) {
+      when (val responseCode = connection.responseCode) {
         HttpURLConnection.HTTP_CREATED -> SubmissionResult.Success
 
         HttpURLConnection.HTTP_UNAUTHORIZED -> {
-          val errorMessage = connection?.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
+          val errorMessage = connection.errorStream?.bufferedReader()?.use { it.readText() } ?: ""
 
           if (errorMessage.contains("invalid signature", ignoreCase = true)) {
             SubmissionResult.PermanentError(
