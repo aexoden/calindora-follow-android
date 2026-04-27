@@ -29,6 +29,7 @@ import java.io.FileWriter
 import java.io.IOException
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
+import java.net.MalformedURLException
 import java.net.URL
 import java.time.Instant
 import java.time.ZoneId
@@ -90,6 +91,12 @@ class CredentialResetReceiver : BroadcastReceiver() {
       }
     }
   }
+}
+
+private sealed class ConfigResult {
+  data class Valid(val config: SubmissionConfig) : ConfigResult()
+
+  data class Invalid(val reason: String) : ConfigResult()
 }
 
 class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
@@ -176,6 +183,17 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
         }
 
+        val submissionConfig =
+            when (val result = getSubmissionConfig()) {
+              is ConfigResult.Valid -> result.config
+              is ConfigResult.Invalid -> {
+                Log.w("SubmissionWorker", "Invalid configuration: ${result.reason}")
+                return@withContext Result.failure(
+                    workDataOf("error_reason" to "INVALID_CONFIG", "details" to result.reason)
+                )
+              }
+            }
+
         try {
           var reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
           var processedAllReports = true
@@ -183,7 +201,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
           while (continueSubmission && reports.isNotEmpty()) {
             for (report in reports) {
-              when (val result = submitSingleReport(report)) {
+              when (val result = submitSingleReport(report, submissionConfig)) {
                 is SubmissionResult.Success -> {
                   locationReportDao.markAsSubmitted(
                       report.id,
@@ -302,41 +320,38 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     return digest.joinToString("") { "%02x".format(it) }
   }
 
-  private fun getSubmissionConfig(): SubmissionConfig? {
+  private fun getSubmissionConfig(): ConfigResult {
     val baseUrl =
         preferences.getString("preference_url", DEFAULT_SERVICE_URL)?.trim()?.trimEnd('/').orEmpty()
     val key = preferences.getString("preference_device_key", "")?.trim().orEmpty()
     val secret = preferences.getString("preference_device_secret", "")?.trim().orEmpty()
 
-    if (baseUrl.isEmpty() || key.isEmpty() || secret.isEmpty()) {
-      return null
+    if (baseUrl.isEmpty()) return ConfigResult.Invalid("Service URL is not configured")
+    if (key.isEmpty()) return ConfigResult.Invalid("Device key is not configured")
+    if (secret.isEmpty()) return ConfigResult.Invalid("Device secret is not configured")
+
+    val submissionUrl =
+        try {
+          URL("$baseUrl/api/v1/devices/${Uri.encode(key)}/reports")
+        } catch (_: MalformedURLException) {
+          return ConfigResult.Invalid("Service URL is not a valid URL")
+        }
+
+    if (submissionUrl.protocol != "https") {
+      return ConfigResult.Invalid("Service URL must use HTTPS")
     }
 
-    return runCatching {
-          val encodedKey = Uri.encode(key)
-          val submissionUrl = URL("$baseUrl/api/v1/devices/$encodedKey/reports")
+    if (submissionUrl.host.isNullOrEmpty()) {
+      return ConfigResult.Invalid("Service URL must have a valid host")
+    }
 
-          if (submissionUrl.protocol != "https") {
-            return@runCatching null
-          }
-
-          if (submissionUrl.host.isNullOrEmpty()) {
-            return@runCatching null
-          }
-
-          SubmissionConfig(submissionUrl.toString(), secret)
-        }
-        .getOrNull()
+    return ConfigResult.Valid(SubmissionConfig(submissionUrl.toString(), secret))
   }
 
-  private fun submitSingleReport(report: LocationReportEntity): SubmissionResult {
-    val submissionConfig =
-        getSubmissionConfig()
-            ?: return SubmissionResult.PermanentError(
-                HttpURLConnection.HTTP_BAD_REQUEST,
-                "Missing or invalid API configuration",
-            )
-
+  private fun submitSingleReport(
+      report: LocationReportEntity,
+      submissionConfig: SubmissionConfig,
+  ): SubmissionResult {
     val signature = formatSignature(report.signatureInput, submissionConfig.secret)
     var connection: HttpURLConnection? = null
 
