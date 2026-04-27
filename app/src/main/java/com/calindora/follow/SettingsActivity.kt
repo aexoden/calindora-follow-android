@@ -99,11 +99,20 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         modifier =
             Modifier.padding(paddingValues).padding(16.dp).fillMaxSize().verticalScroll(scrollState)
     ) {
+      val urlError =
+          when {
+            uiState.serviceUrl.isBlank() -> "URL required"
+            !uiState.serviceUrl.startsWith("https://") -> "URL must use HTTPS"
+            else -> null
+          }
+
       // Service URL
       SettingsTextFieldItem(
           title = stringResource(R.string.preference_url),
           value = uiState.serviceUrl,
           onValueChanged = viewModel::updateServiceUrl,
+          isError = urlError != null,
+          errorText = urlError,
       )
 
       Spacer(modifier = Modifier.height(16.dp))
@@ -304,6 +313,8 @@ fun SettingsTextFieldItem(
     value: String,
     onValueChanged: (String) -> Unit,
     isPassword: Boolean = false,
+    isError: Boolean = false,
+    errorText: String? = null,
 ) {
   Column {
     Text(
@@ -340,6 +351,8 @@ fun SettingsTextFieldItem(
               Icon(imageVector = image, contentDescription = description)
             }
           },
+          isError = isError,
+          supportingText = errorText?.takeIf { isError }?.let { { Text(it) } },
       )
     } else {
       OutlinedTextField(
@@ -347,6 +360,8 @@ fun SettingsTextFieldItem(
           onValueChange = onValueChanged,
           modifier = Modifier.fillMaxWidth(),
           singleLine = true,
+          isError = isError,
+          supportingText = errorText?.takeIf { isError }?.let { { Text(it) } },
       )
     }
   }
