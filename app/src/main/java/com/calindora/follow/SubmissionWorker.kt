@@ -152,7 +152,8 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
               writer.write("Speed: ${report.speed}\n")
               writer.write("Bearing: ${report.bearing}\n")
               writer.write("Accuracy: ${report.accuracy}\n")
-              writer.write("Failure: ${report.permanentFailureReason}\n")
+              writer.write("Failure Code: ${report.permanentFailureCode}\n")
+              writer.write("Failure Reason: ${report.permanentFailureReason}\n")
               writer.write("Signature Input: ${report.signatureInput}\n\n---\n\n")
             }
           }
@@ -215,7 +216,8 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                 is SubmissionResult.PermanentError -> {
                   locationReportDao.markAsPermanentlyFailed(
                       report.id,
-                      "${result.errorCode}: ${result.errorMessage}",
+                      result.errorCode,
+                      result.errorMessage,
                   )
 
                   processedAllReports = false
@@ -231,11 +233,11 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                     // from the settings screen to retry. Review this for a future v2 of the API.
                     locationReportDao.markAsPermanentlyFailed(
                         report.id,
-                        "Exceeded max attempts ($MAX_SUBMISSION_ATTEMPTS): ${result.errorCode}: ${result.errorMessage}",
+                        result.errorCode,
+                        "Exceeded max attempts ($MAX_SUBMISSION_ATTEMPTS): ${result.errorMessage}",
                     )
                     processedAllReports = false
                   } else {
-
                     if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
                       val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
                       preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount) }
@@ -248,6 +250,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                         )
                       }
                     }
+
                     continueSubmission = false
                     processedAllReports = false
                   }

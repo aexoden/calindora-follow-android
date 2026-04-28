@@ -20,6 +20,7 @@ data class LocationReportEntity(
     val signatureInput: String,
     val body: String,
     val permanentlyFailed: Boolean = false,
+    val permanentFailureCode: Int = 0,
     val permanentFailureReason: String = "",
     val submissionAttempts: Int = 0,
     val submittedAt: Long = 0,
@@ -36,17 +37,12 @@ interface LocationReportDao {
   suspend fun getUnsubmittedReports(limit: Int): List<LocationReportEntity>
 
   @Query(
-      "UPDATE location_reports SET permanentlyFailed = true, permanentFailureReason = :reason WHERE id = :id"
+      "UPDATE location_reports SET permanentlyFailed = true, permanentFailureCode = :code, permanentFailureReason = :reason WHERE id = :id"
   )
-  suspend fun markAsPermanentlyFailed(id: Long, reason: String)
+  suspend fun markAsPermanentlyFailed(id: Long, code: Int, reason: String)
 
   @Query(
-      "SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true AND permanentFailureReason LIKE '%401:%'"
-  )
-  suspend fun getAuthFailureCountSuspend(): Int
-
-  @Query(
-      "SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true AND permanentFailureReason LIKE '%401:%'"
+      "SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true AND permanentFailureCode = 401"
   )
   fun getAuthFailureCount(): Flow<Int>
 
@@ -59,7 +55,7 @@ interface LocationReportDao {
   suspend fun getPermanentlyFailedReports(limit: Int): List<LocationReportEntity>
 
   @Query(
-      "UPDATE location_reports SET permanentlyFailed = false, permanentFailureReason = '' WHERE permanentlyFailed = true"
+      "UPDATE location_reports SET permanentlyFailed = false, permanentFailureCode = 0, permanentFailureReason = '' WHERE permanentlyFailed = true"
   )
   suspend fun resetPermanentlyFailedReports()
 
