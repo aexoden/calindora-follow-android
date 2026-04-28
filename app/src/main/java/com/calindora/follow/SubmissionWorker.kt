@@ -106,6 +106,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
   companion object {
     const val MAX_BATCH_SIZE = 50
     const val MAX_AUTH_FAILURES = 5
+    const val MAX_SUBMISSION_ATTEMPTS = 20
     const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
     const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
     const val UNIQUE_WORK_NAME = "submission_work"
@@ -221,21 +222,35 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                 }
                 is SubmissionResult.TransientError -> {
                   locationReportDao.incrementSubmissionAttempts(report.id)
+                  val newAttempts = report.submissionAttempts + 1
 
-                  if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                    val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
-                    preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount) }
+                  if (newAttempts >= MAX_SUBMISSION_ATTEMPTS) {
+                    // This report has failed too many times, so it's probable that it's an issue
+                    // with the report itself. We'll mark it as permanently failed, and if it does
+                    // turn out to be a temporary issue with the server, the user can reset reports
+                    // from the settings screen to retry. Review this for a future v2 of the API.
+                    locationReportDao.markAsPermanentlyFailed(
+                        report.id,
+                        "Exceeded max attempts ($MAX_SUBMISSION_ATTEMPTS): ${result.errorCode}: ${result.errorMessage}",
+                    )
+                    processedAllReports = false
+                  } else {
 
-                    if (newCount >= MAX_AUTH_FAILURES) {
-                      preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
-                      notifyCredentialIssue(newCount)
-                      return@withContext Result.failure(
-                          workDataOf("error_reason" to "CREDENTIAL_ISSUE")
-                      )
+                    if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                      val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
+                      preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount) }
+
+                      if (newCount >= MAX_AUTH_FAILURES) {
+                        preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+                        notifyCredentialIssue(newCount)
+                        return@withContext Result.failure(
+                            workDataOf("error_reason" to "CREDENTIAL_ISSUE")
+                        )
+                      }
                     }
+                    continueSubmission = false
+                    processedAllReports = false
                   }
-                  continueSubmission = false
-                  processedAllReports = false
                 }
               }
             }
