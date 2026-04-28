@@ -67,9 +67,6 @@ class CredentialResetReceiver : BroadcastReceiver() {
 
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        val dao = AppDatabase.getInstance(context).locationReportDao()
-        dao.resetPermanentlyFailedReports()
-
         PreferenceManager.getDefaultSharedPreferences(context).edit {
           putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
           putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
@@ -105,7 +102,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
   companion object {
     const val MAX_BATCH_SIZE = 50
-    const val MAX_AUTH_FAILURES = 5
+    const val MAX_AUTH_FAILURES = 3
     const val MAX_SUBMISSION_ATTEMPTS = 20
     const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
     const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
@@ -179,7 +176,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
         val authFailureCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0)
         if (authFailureCount >= MAX_AUTH_FAILURES) {
-          preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+          preferences.edit(commit = true) { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
           notifyCredentialIssue(authFailureCount)
           return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
         }
@@ -210,7 +207,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                   )
 
                   if (preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) != 0) {
-                    preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) }
+                    preferences.edit(commit = true) { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) }
                   }
                 }
                 is SubmissionResult.PermanentError -> {
@@ -240,10 +237,14 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                   } else {
                     if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
                       val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
-                      preferences.edit { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount) }
+                      preferences.edit(commit = true) {
+                        putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount)
+                      }
 
                       if (newCount >= MAX_AUTH_FAILURES) {
-                        preferences.edit { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+                        preferences.edit(commit = true) {
+                          putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
+                        }
                         notifyCredentialIssue(newCount)
                         return@withContext Result.failure(
                             workDataOf("error_reason" to "CREDENTIAL_ISSUE")
@@ -253,6 +254,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
                     continueSubmission = false
                     processedAllReports = false
+                    break
                   }
                 }
               }

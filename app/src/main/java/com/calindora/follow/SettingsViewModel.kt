@@ -2,6 +2,7 @@ package com.calindora.follow
 
 import android.app.Application
 import android.content.Context
+import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
@@ -32,7 +33,7 @@ data class SettingsUiState(
     val deviceKey: String = "",
     val deviceSecret: String = "",
     val isCredentialBlocked: Boolean = false,
-    val authFailureCount: Int = 0,
+    val consecutiveAuthFailures: Int = 0,
     val failedReportCount: Int = 0,
     val showResetDialog: Boolean = false,
     val showExportDialog: Boolean = false,
@@ -48,6 +49,16 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
   private val settingsRepository = SettingsRepository(application, locationReportDao)
 
+  private val credentialPreferenceListener =
+      SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
+        if (
+            changedKey == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED ||
+                changedKey == SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES
+        ) {
+          refreshCredentialStatus()
+        }
+      }
+
   private val _uiState =
       MutableStateFlow(
           SettingsUiState(
@@ -58,6 +69,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
               deviceSecret = prefs.getString(Preferences.KEY_DEVICE_SECRET, "") ?: "",
               isCredentialBlocked =
                   prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false),
+              consecutiveAuthFailures =
+                  prefs.getInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0),
           )
       )
   val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -71,12 +84,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
       prefs.edit { putString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL) }
     }
 
-    // Auth failure count
-    viewModelScope.launch {
-      locationReportDao.getAuthFailureCount().collect { count ->
-        _uiState.update { it.copy(authFailureCount = count) }
-      }
-    }
+    refreshCredentialStatus()
+    prefs.registerOnSharedPreferenceChangeListener(credentialPreferenceListener)
 
     // Permanently failed report count
     viewModelScope.launch {
@@ -125,6 +134,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
   }
 
+  private fun refreshCredentialStatus() {
+    _uiState.update {
+      it.copy(
+          isCredentialBlocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false),
+          consecutiveAuthFailures =
+              prefs.getInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0),
+      )
+    }
+  }
+
+  override fun onCleared() {
+    prefs.unregisterOnSharedPreferenceChangeListener(credentialPreferenceListener)
+    super.onCleared()
+  }
+
   // Settings update functions - these only update in-memory state
   // The debounced collectors in init will handle saving to SharedPreferences
   fun updateServiceUrl(url: String) {
@@ -137,10 +161,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
   fun updateDeviceSecret(secret: String) {
     _uiState.update { it.copy(deviceSecret = secret) }
-  }
-
-  fun updateCredentialBlockedStatus(isBlocked: Boolean) {
-    _uiState.update { it.copy(isCredentialBlocked = isBlocked) }
   }
 
   // Dialog management
@@ -246,10 +266,8 @@ class SettingsRepository(
 ) {
   private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
 
-  suspend fun resetCredentialBlock(): Boolean =
+  fun resetCredentialBlock(): Boolean =
       runCatching {
-            locationReportDao.resetPermanentlyFailedReports()
-
             prefs.edit {
               putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
               putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)

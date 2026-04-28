@@ -1,6 +1,5 @@
 package com.calindora.follow
 
-import android.content.SharedPreferences
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.compose.LocalActivity
@@ -40,7 +39,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,7 +60,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.preference.PreferenceManager
 import kotlinx.coroutines.delay
 
 private const val SAVED_INDICATOR_VISIBLE_MS = 1500L
@@ -110,23 +107,6 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
       Toast.makeText(context, it, Toast.LENGTH_LONG).show()
       viewModel.clearToastMessage()
     }
-  }
-
-  // Keep the credential-blocked banner state in sync
-  val prefs = remember { PreferenceManager.getDefaultSharedPreferences(context) }
-  val prefListener = remember {
-    SharedPreferences.OnSharedPreferenceChangeListener { sharedPrefs, key ->
-      if (key == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED) {
-        viewModel.updateCredentialBlockedStatus(
-            sharedPrefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-        )
-      }
-    }
-  }
-
-  DisposableEffect(prefs) {
-    prefs.registerOnSharedPreferenceChangeListener(prefListener)
-    onDispose { prefs.unregisterOnSharedPreferenceChangeListener(prefListener) }
   }
 
   Scaffold(
@@ -233,7 +213,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 
       CredentialStatusCard(
           isBlocked = uiState.isCredentialBlocked,
-          authFailureCount = uiState.authFailureCount,
+          consecutiveAuthFailures = uiState.consecutiveAuthFailures,
       )
 
       Spacer(modifier = Modifier.height(16.dp))
@@ -241,7 +221,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
       // Reset Credential Block (visible if blocked or enough auth failures)
       if (
           uiState.isCredentialBlocked ||
-              uiState.authFailureCount >= SubmissionWorker.MAX_AUTH_FAILURES
+              uiState.consecutiveAuthFailures >= SubmissionWorker.MAX_AUTH_FAILURES
       ) {
         Button(
             onClick = { viewModel.showResetDialog() },
@@ -316,7 +296,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         title = { Text("Reset Authentication Block") },
         text = {
           Text(
-              "This will reset all authentication failures and re-enable submissions. " +
+              "This will re-enable submissions. " +
                   "Make sure you've fixed any credential issues before proceeding."
           )
         },
@@ -393,7 +373,7 @@ private fun SavedIndicator(visible: Boolean) {
 }
 
 @Composable
-private fun CredentialStatusCard(isBlocked: Boolean, authFailureCount: Int) {
+private fun CredentialStatusCard(isBlocked: Boolean, consecutiveAuthFailures: Int) {
   Card(modifier = Modifier.fillMaxWidth()) {
     Column(modifier = Modifier.padding(16.dp)) {
       Text(
@@ -407,9 +387,12 @@ private fun CredentialStatusCard(isBlocked: Boolean, authFailureCount: Int) {
             isBlocked ->
                 stringResource(R.string.preference_credential_status_blocked) to
                     MaterialTheme.colorScheme.error
-            authFailureCount > 0 ->
-                "$authFailureCount reports with authentication failures" to
-                    MaterialTheme.colorScheme.onSurfaceVariant
+            consecutiveAuthFailures > 0 ->
+                stringResource(
+                    R.string.preference_credential_status_failures,
+                    consecutiveAuthFailures,
+                    SubmissionWorker.MAX_AUTH_FAILURES,
+                ) to MaterialTheme.colorScheme.onSurfaceVariant
             else ->
                 stringResource(R.string.preference_credential_status_ok) to
                     MaterialTheme.colorScheme.onSurface

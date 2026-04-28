@@ -41,11 +41,6 @@ interface LocationReportDao {
   )
   suspend fun markAsPermanentlyFailed(id: Long, code: Int, reason: String)
 
-  @Query(
-      "SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true AND permanentFailureCode = 401"
-  )
-  fun getAuthFailureCount(): Flow<Int>
-
   @Query("SELECT COUNT(*) FROM location_reports WHERE permanentlyFailed = true")
   fun getPermanentlyFailedReportCount(): Flow<Int>
 
