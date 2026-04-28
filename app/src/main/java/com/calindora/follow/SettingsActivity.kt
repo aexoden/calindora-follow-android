@@ -246,6 +246,26 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         Spacer(modifier = Modifier.height(16.dp))
 
         Button(
+            onClick = { viewModel.showRetryDialog() },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+          Text("Retry Failed Reports")
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Text(
+            text =
+                "Move ${uiState.failedReportCount} retryable reports back into the submission queue",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(),
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(
             onClick = { viewModel.showExportDialog() },
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -305,6 +325,28 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         },
         dismissButton = {
           TextButton(onClick = { viewModel.dismissResetDialog() }) { Text("Cancel") }
+        },
+    )
+  }
+
+  // Retry Failed Reports Confirmation Dialog
+  if (uiState.showRetryDialog) {
+    AlertDialog(
+        onDismissRequest = { viewModel.dismissRetryDialog() },
+        title = { Text("Retry Failed Reports") },
+        text = {
+          Text(
+              "${uiState.failedReportCount} reports will be moved back to the submission queue " +
+                  "with a fresh attempt budget. Reports that hit a real bug (rather than a transient " +
+                  "issue or fixed configuration) will likely fail again. If submissions are currently " +
+                  "blocked due to authentication failures, you'll also need to reset that block."
+          )
+        },
+        confirmButton = {
+          TextButton(onClick = { viewModel.retryFailedReports() }) { Text("Retry") }
+        },
+        dismissButton = {
+          TextButton(onClick = { viewModel.dismissRetryDialog() }) { Text("Cancel") }
         },
     )
   }

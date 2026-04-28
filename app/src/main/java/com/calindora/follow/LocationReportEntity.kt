@@ -50,9 +50,9 @@ interface LocationReportDao {
   suspend fun getPermanentlyFailedReports(limit: Int): List<LocationReportEntity>
 
   @Query(
-      "UPDATE location_reports SET permanentlyFailed = false, permanentFailureCode = 0, permanentFailureReason = '' WHERE permanentlyFailed = true"
+      "UPDATE location_reports SET permanentlyFailed = false, permanentFailureCode = 0, permanentFailureReason = '', submissionAttempts = 0 WHERE permanentlyFailed = true"
   )
-  suspend fun resetPermanentlyFailedReports()
+  suspend fun retryPermanentlyFailedReports(): Int
 
   @Query("DELETE FROM location_reports WHERE permanentlyFailed = true")
   suspend fun deletePermanentlyFailedReports()

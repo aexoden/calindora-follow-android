@@ -36,6 +36,7 @@ data class SettingsUiState(
     val consecutiveAuthFailures: Int = 0,
     val failedReportCount: Int = 0,
     val showResetDialog: Boolean = false,
+    val showRetryDialog: Boolean = false,
     val showExportDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
     val toastMessage: String? = null,
@@ -87,7 +88,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     refreshCredentialStatus()
     prefs.registerOnSharedPreferenceChangeListener(credentialPreferenceListener)
 
-    // Permanently failed report count
+    // Failed report counts
     viewModelScope.launch {
       locationReportDao.getPermanentlyFailedReportCount().collect { count ->
         _uiState.update { it.copy(failedReportCount = count) }
@@ -172,6 +173,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     _uiState.update { it.copy(showResetDialog = false) }
   }
 
+  fun showRetryDialog() {
+    _uiState.update { it.copy(showRetryDialog = true) }
+  }
+
+  fun dismissRetryDialog() {
+    _uiState.update { it.copy(showRetryDialog = false) }
+  }
+
   fun showExportDialog() {
     _uiState.update { it.copy(showExportDialog = true) }
   }
@@ -206,6 +215,21 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 } else {
                   "Failed to reset authentication block."
                 },
+        )
+      }
+    }
+  }
+
+  fun retryFailedReports() {
+    viewModelScope.launch {
+      val count = _uiState.value.failedReportCount
+      val success = settingsRepository.retryFailedReports()
+
+      _uiState.update {
+        it.copy(
+            showRetryDialog = false,
+            toastMessage =
+                if (success) "$count reports queued for retry" else "Failed to retry reports",
         )
       }
     }
@@ -278,6 +302,21 @@ class SettingsRepository(
                     SubmissionWorker.UNIQUE_WORK_NAME,
                     ExistingWorkPolicy.REPLACE,
                     SubmissionWorker.buildWorkRequest(),
+                )
+
+            true
+          }
+          .getOrDefault(false)
+
+  suspend fun retryFailedReports(): Boolean =
+      runCatching {
+            locationReportDao.retryPermanentlyFailedReports()
+
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(
+                    SubmissionWorker.UNIQUE_WORK_NAME,
+                    ExistingWorkPolicy.REPLACE,
+                    SubmissionWorker.buildWorkRequest(expedited = true),
                 )
 
             true
