@@ -66,13 +66,18 @@ interface LocationReportDao {
   @Query("DELETE FROM location_reports WHERE permanentlyFailed = true")
   suspend fun deletePermanentlyFailedReports()
 
+  @Query("DELETE FROM location_reports WHERE submittedAt = 0 AND permanentlyFailed = false")
+  suspend fun deleteUnsubmittedReports()
+
   @Query("UPDATE location_reports SET submittedAt = :timestamp WHERE id = :id")
   suspend fun markAsSubmitted(id: Long, timestamp: Long)
 
   @Query("UPDATE location_reports SET submissionAttempts = submissionAttempts + 1 WHERE ID = :id")
   suspend fun incrementSubmissionAttempts(id: Long)
 
-  @Query("SELECT COUNT(*) FROM location_reports WHERE submittedAt = 0")
+  @Query(
+      "SELECT COUNT(*) FROM location_reports WHERE submittedAt = 0 AND permanentlyFailed = false"
+  )
   fun getUnsubmittedReportCount(): Flow<Int>
 
   @Query("SELECT MAX(submittedAt) FROM location_reports") fun getLastSubmissionTime(): Flow<Long>

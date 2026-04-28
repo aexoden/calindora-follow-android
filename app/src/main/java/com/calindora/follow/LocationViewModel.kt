@@ -14,12 +14,7 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
   val lastSubmissionTime = locationReportDao.getLastSubmissionTime()
 
   fun clearQueue() {
-    viewModelScope.launch {
-      val reports = locationReportDao.getUnsubmittedReports(Int.MAX_VALUE)
-      for (report in reports) {
-        locationReportDao.markAsSubmitted(report.id, System.currentTimeMillis())
-      }
-    }
+    viewModelScope.launch { locationReportDao.deleteUnsubmittedReports() }
   }
 
   fun forceSubmission() {
