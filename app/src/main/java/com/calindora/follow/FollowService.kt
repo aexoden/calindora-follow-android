@@ -49,11 +49,20 @@ class FollowService : Service() {
 
   private var locationUpdateCallback: ((Location) -> Unit)? = null
 
-  private lateinit var mLocation: Location
+  private var mLocation: Location =
+      Location("").apply {
+        latitude = 0.0
+        longitude = 0.0
+        altitude = 0.0
+        speed = 0f
+        bearing = 0f
+        accuracy = 0f
+        time = System.currentTimeMillis()
+      }
   private var mLastReportTime = 0L
 
   private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-  private lateinit var locationReportDao: LocationReportDao
+  private val locationReportDao by lazy { AppDatabase.getInstance(this).locationReportDao() }
 
   private var nmeaLog: BufferedWriter? = null
 
@@ -89,10 +98,7 @@ class FollowService : Service() {
 
   fun setLocationUpdateCallback(callback: (Location) -> Unit) {
     locationUpdateCallback = callback
-
-    if (::mLocation.isInitialized) {
-      callback(mLocation)
-    }
+    callback(mLocation)
   }
 
   fun unregisterLocationCallback() {
@@ -106,22 +112,9 @@ class FollowService : Service() {
   override fun onCreate() {
     super.onCreate()
 
-    mLocation =
-        Location("").apply {
-          latitude = 0.0
-          longitude = 0.0
-          altitude = 0.0
-          speed = 0f
-          bearing = 0f
-          accuracy = 0f
-          time = System.currentTimeMillis()
-        }
-
     createNotificationChannel()
     createNotification()
     startLocationUpdates()
-
-    locationReportDao = AppDatabase.getInstance(this).locationReportDao()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
