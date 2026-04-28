@@ -103,7 +103,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
   companion object {
     const val MAX_BATCH_SIZE = 50
     const val MAX_AUTH_FAILURES = 3
-    const val MAX_SUBMISSION_ATTEMPTS = 20
+    const val MAX_SUBMISSION_ATTEMPTS = 5
     const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
     const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
     const val UNIQUE_WORK_NAME = "submission_work"
@@ -220,42 +220,48 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                   processedAllReports = false
                 }
                 is SubmissionResult.TransientError -> {
-                  locationReportDao.incrementSubmissionAttempts(report.id)
-                  val newAttempts = report.submissionAttempts + 1
+                  val isNetworkLevel = result.errorCode == -1
 
-                  if (newAttempts >= MAX_SUBMISSION_ATTEMPTS) {
-                    // This report has failed too many times, so it's probable that it's an issue
-                    // with the report itself. We'll mark it as permanently failed, and if it does
-                    // turn out to be a temporary issue with the server, the user can reset reports
-                    // from the settings screen to retry. Review this for a future v2 of the API.
-                    locationReportDao.markAsPermanentlyFailed(
-                        report.id,
-                        result.errorCode,
-                        "Exceeded max attempts ($MAX_SUBMISSION_ATTEMPTS): ${result.errorMessage}",
-                    )
-                    processedAllReports = false
-                  } else {
-                    if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                      val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
-                      preferences.edit(commit = true) {
-                        putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount)
-                      }
+                  if (!isNetworkLevel) {
+                    locationReportDao.incrementSubmissionAttempts(report.id)
+                    val newAttempts = report.submissionAttempts + 1
 
-                      if (newCount >= MAX_AUTH_FAILURES) {
+                    if (newAttempts >= MAX_SUBMISSION_ATTEMPTS) {
+                      // This report has failed too many times, so it's probable that it's an issue
+                      // with the report itself. We'll mark it as permanently failed, and if it does
+                      // turn out to be a temporary issue with the server, the user can reset
+                      // reports
+                      // from the settings screen to retry. Review this for a future v2 of the API.
+                      locationReportDao.markAsPermanentlyFailed(
+                          report.id,
+                          result.errorCode,
+                          "Exceeded max attempts ($MAX_SUBMISSION_ATTEMPTS): ${result.errorMessage}",
+                      )
+                      processedAllReports = false
+                      continue
+                    } else {
+                      if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
+                        val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
                         preferences.edit(commit = true) {
-                          putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
+                          putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount)
                         }
-                        notifyCredentialIssue(newCount)
-                        return@withContext Result.failure(
-                            workDataOf("error_reason" to "CREDENTIAL_ISSUE")
-                        )
+
+                        if (newCount >= MAX_AUTH_FAILURES) {
+                          preferences.edit(commit = true) {
+                            putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
+                          }
+                          notifyCredentialIssue(newCount)
+                          return@withContext Result.failure(
+                              workDataOf("error_reason" to "CREDENTIAL_ISSUE")
+                          )
+                        }
                       }
                     }
-
-                    continueSubmission = false
-                    processedAllReports = false
-                    break
                   }
+
+                  continueSubmission = false
+                  processedAllReports = false
+                  break
                 }
               }
             }
@@ -400,6 +406,12 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
           // This block is a bit of a heuristic as the v1 API doesn't have a well-defined error
           // response format.
+          //
+          // BUG: This doesn't match the current server behavior at all. The server has no way to
+          // distinguish an invalid signature from an incorrect secret, so it reports them all bad
+          // with the error "The provided signature was invalid". We don't want to treat all auth
+          // failures as permanent, so we are just leaving this bug for now, and will only be able
+          // to address it with a future v2 API.
           if (errorMessage.contains("invalid signature", ignoreCase = true)) {
             // The server has our key but couldn't verify the signature, so the most likely result
             // is a failure on either side in generating consistent input text. We treat this as
@@ -420,6 +432,18 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           SubmissionResult.PermanentError(responseCode, "Unknown API key")
         }
 
+        HttpURLConnection.HTTP_BAD_REQUEST,
+        HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
+        422 -> {
+          val body = connection.readErrorBody()
+          SubmissionResult.PermanentError(
+              responseCode,
+              body.ifEmpty { "Client error $responseCode" },
+          )
+        }
+
+        HttpURLConnection.HTTP_CLIENT_TIMEOUT,
+        429,
         in 500..599 -> {
           connection.readErrorBody()
           SubmissionResult.TransientError(responseCode, "Server error")
