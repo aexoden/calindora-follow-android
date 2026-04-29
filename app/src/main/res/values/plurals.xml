@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <plurals name="dialog_delete_message">
+    <item quantity="one">This will permanently delete %d failed report. This action cannot be undone.</item>
+    <item quantity="other">This will permanently delete %d failed reports. This action cannot be undone.</item>
+  </plurals>
+  <plurals name="dialog_export_message">
+    <item quantity="one">This will export %d failed report to the logs directory.</item>
+    <item quantity="other">This will export %d failed reports to the logs directory.</item>
+  </plurals>
+  <plurals name="dialog_retry_message">
+    <item quantity="one">%d report will be moved back to the submission queue with a fresh attempt budget. Reports that hit a real bug (rather than a transient issue or fixed configuration) will likely fail again. If submissions are currently blocked due to authentication failures, you\'ll also need to reset that block.</item>
+    <item quantity="other">%d reports will be moved back to the submission queue with a fresh attempt budget. Reports that hit a real bug (rather than a transient issue or fixed configuration) will likely fail again. If submissions are currently blocked due to authentication failures, you\'ll also need to reset that block.</item>
+  </plurals>
+  <plurals name="failed_reports_delete_summary">
+    <item quantity="one">Permanently delete %d failed report</item>
+    <item quantity="other">Permanently delete %d failed reports</item>
+  </plurals>
+  <plurals name="failed_reports_export_summary">
+    <item quantity="one">Export %d failed report to log file</item>
+    <item quantity="other">Export %d failed reports to log file</item>
+  </plurals>
+  <plurals name="failed_reports_retry_summary">
+    <item quantity="one">Move %d retryable report back into the submission queue</item>
+    <item quantity="other">Move %d retryable reports back into the submission queue</item>
+  </plurals>
+  <plurals name="notification_credential_text">
+    <item quantity="one">%1$d consecutive report failed authentication. Please check your device key and secret.</item>
+    <item quantity="other">%1$d consecutive reports failed authentication. Please check your device key and secret.</item>
+  </plurals>
+  <plurals name="preference_credential_status_failures">
+    <item quantity="one">%1$d of %2$d consecutive authentication failure</item>
+    <item quantity="other">%1$d of %2$d consecutive authentication failures</item>
+  </plurals>
+  <plurals name="toast_reports_queued_for_retry">
+    <item quantity="one">%d report queued for retry</item>
+    <item quantity="other">%d reports queued for retry</item>
+  </plurals>
+</resources>

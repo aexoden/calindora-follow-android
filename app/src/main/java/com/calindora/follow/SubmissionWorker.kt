@@ -314,7 +314,11 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(applicationContext.getString(R.string.notification_credential_title))
             .setContentText(
-                applicationContext.getString(R.string.notification_credential_text, failureCount)
+                applicationContext.resources.getQuantityString(
+                    R.plurals.notification_credential_text,
+                    failureCount,
+                    failureCount,
+                )
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(settingsPendingIntent)

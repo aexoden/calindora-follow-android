@@ -38,7 +38,7 @@ data class SettingsUiState(
     val showRetryDialog: Boolean = false,
     val showExportDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
-    val toastMessage: String? = null,
+    val toastMessage: ToastMessage? = null,
 )
 
 /** ViewModel for the Settings screen */
@@ -209,11 +209,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         it.copy(
             showResetDialog = false,
             toastMessage =
-                if (success) {
-                  "Authentication block reset. Retrying submissions."
-                } else {
-                  "Failed to reset authentication block."
-                },
+                ToastMessage.Simple(
+                    if (success) R.string.toast_credential_reset_success
+                    else R.string.toast_credential_reset_failure
+                ),
         )
       }
     }
@@ -228,7 +227,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         it.copy(
             showRetryDialog = false,
             toastMessage =
-                if (success) "$count reports queued for retry" else "Failed to retry reports",
+                if (success) {
+                  ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, count)
+                } else {
+                  ToastMessage.Simple(R.string.toast_retry_failure)
+                },
         )
       }
     }
@@ -242,11 +245,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         it.copy(
             showExportDialog = false,
             toastMessage =
-                if (success) {
-                  "Failed reports exported to logs directory"
-                } else {
-                  "Failed to export reports"
-                },
+                ToastMessage.Simple(
+                    if (success) R.string.toast_export_success else R.string.toast_export_failure
+                ),
         )
       }
     }
@@ -260,11 +261,9 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         it.copy(
             showDeleteDialog = false,
             toastMessage =
-                if (success) {
-                  "Failed reports deleted successfully"
-                } else {
-                  "Failed to delete reports"
-                },
+                ToastMessage.Simple(
+                    if (success) R.string.toast_delete_success else R.string.toast_delete_failure
+                ),
         )
       }
     }

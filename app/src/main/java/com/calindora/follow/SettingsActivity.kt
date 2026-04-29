@@ -51,6 +51,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -104,10 +105,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   // Display toast messages for one-shot operations
   LaunchedEffect(uiState.toastMessage) {
     uiState.toastMessage?.let {
-      Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+      Toast.makeText(context, it.resolve(context), Toast.LENGTH_LONG).show()
       viewModel.clearToastMessage()
     }
   }
+
+  // Field validation strings are resolved so they can be used in lambdas
+  val urlRequiredError = stringResource(R.string.error_url_required)
+  val urlHttpsError = stringResource(R.string.error_url_https)
 
   Scaffold(
       topBar = {
@@ -117,7 +122,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
               IconButton(onClick = { activity?.finish() }) {
                 Icon(
                     painter = painterResource(R.drawable.arrow_back_24px),
-                    contentDescription = "Back",
+                    contentDescription = stringResource(R.string.action_back),
                 )
               }
             },
@@ -137,7 +142,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
       Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp)) {
           Text(
-              text = "Connection",
+              text = stringResource(R.string.preference_category_connection),
               style = MaterialTheme.typography.titleMedium,
               color = MaterialTheme.colorScheme.primary,
           )
@@ -158,8 +163,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
               keyboardActions = KeyboardActions(onNext = { keyFocus.requestFocus() }),
               validate = { value ->
                 when {
-                  value.isBlank() -> "URL required"
-                  !value.startsWith("https://") -> "URL must use HTTPS"
+                  value.isBlank() -> urlRequiredError
+                  !value.startsWith("https://") -> urlHttpsError
                   else -> null
                 }
               },
@@ -249,14 +254,18 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             onClick = { viewModel.showRetryDialog() },
             modifier = Modifier.fillMaxWidth(),
         ) {
-          Text("Retry Failed Reports")
+          Text(stringResource(R.string.action_retry_failed_reports))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
             text =
-                "Move ${uiState.failedReportCount} retryable reports back into the submission queue",
+                pluralStringResource(
+                    R.plurals.failed_reports_retry_summary,
+                    uiState.failedReportCount,
+                    uiState.failedReportCount,
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -269,13 +278,18 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             onClick = { viewModel.showExportDialog() },
             modifier = Modifier.fillMaxWidth(),
         ) {
-          Text("Export Failed Reports")
+          Text(stringResource(R.string.action_export_failed_reports))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Export ${uiState.failedReportCount} failed reports to log file",
+            text =
+                pluralStringResource(
+                    R.plurals.failed_reports_export_summary,
+                    uiState.failedReportCount,
+                    uiState.failedReportCount,
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -293,13 +307,18 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     contentColor = MaterialTheme.colorScheme.onError,
                 ),
         ) {
-          Text("Delete Failed Reports")
+          Text(stringResource(R.string.action_delete_failed_reports))
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Permanently delete ${uiState.failedReportCount} failed reports",
+            text =
+                pluralStringResource(
+                    R.plurals.failed_reports_delete_summary,
+                    uiState.failedReportCount,
+                    uiState.failedReportCount,
+                ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
@@ -313,18 +332,17 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   if (uiState.showResetDialog) {
     AlertDialog(
         onDismissRequest = { viewModel.dismissResetDialog() },
-        title = { Text("Reset Authentication Block") },
-        text = {
-          Text(
-              "This will re-enable submissions. " +
-                  "Make sure you've fixed any credential issues before proceeding."
-          )
-        },
+        title = { Text(stringResource(R.string.dialog_reset_title)) },
+        text = { Text(stringResource(R.string.dialog_reset_message)) },
         confirmButton = {
-          TextButton(onClick = { viewModel.resetCredentialBlock() }) { Text("Reset") }
+          TextButton(onClick = { viewModel.resetCredentialBlock() }) {
+            Text(stringResource(R.string.action_reset))
+          }
         },
         dismissButton = {
-          TextButton(onClick = { viewModel.dismissResetDialog() }) { Text("Cancel") }
+          TextButton(onClick = { viewModel.dismissResetDialog() }) {
+            Text(stringResource(R.string.action_cancel))
+          }
         },
     )
   }
@@ -333,20 +351,25 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   if (uiState.showRetryDialog) {
     AlertDialog(
         onDismissRequest = { viewModel.dismissRetryDialog() },
-        title = { Text("Retry Failed Reports") },
+        title = { Text(stringResource(R.string.dialog_retry_title)) },
         text = {
           Text(
-              "${uiState.failedReportCount} reports will be moved back to the submission queue " +
-                  "with a fresh attempt budget. Reports that hit a real bug (rather than a transient " +
-                  "issue or fixed configuration) will likely fail again. If submissions are currently " +
-                  "blocked due to authentication failures, you'll also need to reset that block."
+              pluralStringResource(
+                  R.plurals.dialog_retry_message,
+                  uiState.failedReportCount,
+                  uiState.failedReportCount,
+              )
           )
         },
         confirmButton = {
-          TextButton(onClick = { viewModel.retryFailedReports() }) { Text("Retry") }
+          TextButton(onClick = { viewModel.retryFailedReports() }) {
+            Text(stringResource(R.string.action_retry))
+          }
         },
         dismissButton = {
-          TextButton(onClick = { viewModel.dismissRetryDialog() }) { Text("Cancel") }
+          TextButton(onClick = { viewModel.dismissRetryDialog() }) {
+            Text(stringResource(R.string.action_cancel))
+          }
         },
     )
   }
@@ -355,17 +378,25 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   if (uiState.showExportDialog) {
     AlertDialog(
         onDismissRequest = { viewModel.dismissExportDialog() },
-        title = { Text("Export Failed Reports") },
+        title = { Text(stringResource(R.string.dialog_export_title)) },
         text = {
           Text(
-              "This will export ${uiState.failedReportCount} failed reports to the logs directory."
+              pluralStringResource(
+                  R.plurals.dialog_export_message,
+                  uiState.failedReportCount,
+                  uiState.failedReportCount,
+              )
           )
         },
         confirmButton = {
-          TextButton(onClick = { viewModel.exportFailedReports() }) { Text("Export") }
+          TextButton(onClick = { viewModel.exportFailedReports() }) {
+            Text(stringResource(R.string.action_export))
+          }
         },
         dismissButton = {
-          TextButton(onClick = { viewModel.dismissExportDialog() }) { Text("Cancel") }
+          TextButton(onClick = { viewModel.dismissExportDialog() }) {
+            Text(stringResource(R.string.action_cancel))
+          }
         },
     )
   }
@@ -374,18 +405,25 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   if (uiState.showDeleteDialog) {
     AlertDialog(
         onDismissRequest = { viewModel.dismissDeleteDialog() },
-        title = { Text("Delete Failed Reports") },
+        title = { Text(stringResource(R.string.dialog_delete_title)) },
         text = {
           Text(
-              "This will permanently delete ${uiState.failedReportCount} failed reports. " +
-                  "This action cannot be undone."
+              pluralStringResource(
+                  R.plurals.dialog_delete_message,
+                  uiState.failedReportCount,
+                  uiState.failedReportCount,
+              )
           )
         },
         confirmButton = {
-          TextButton(onClick = { viewModel.deleteFailedReports() }) { Text("Delete") }
+          TextButton(onClick = { viewModel.deleteFailedReports() }) {
+            Text(stringResource(R.string.action_delete))
+          }
         },
         dismissButton = {
-          TextButton(onClick = { viewModel.dismissDeleteDialog() }) { Text("Cancel") }
+          TextButton(onClick = { viewModel.dismissDeleteDialog() }) {
+            Text(stringResource(R.string.action_cancel))
+          }
         },
     )
   }
@@ -406,7 +444,7 @@ private fun SavedIndicator(visible: Boolean) {
           modifier = Modifier.size(18.dp),
       )
       Text(
-          text = "Saved",
+          text = stringResource(R.string.indicator_saved),
           style = MaterialTheme.typography.labelMedium,
           color = MaterialTheme.colorScheme.primary,
       )
@@ -430,8 +468,9 @@ private fun CredentialStatusCard(isBlocked: Boolean, consecutiveAuthFailures: In
                 stringResource(R.string.preference_credential_status_blocked) to
                     MaterialTheme.colorScheme.error
             consecutiveAuthFailures > 0 ->
-                stringResource(
-                    R.string.preference_credential_status_failures,
+                pluralStringResource(
+                    R.plurals.preference_credential_status_failures,
+                    consecutiveAuthFailures,
                     consecutiveAuthFailures,
                     SubmissionWorker.MAX_AUTH_FAILURES,
                 ) to MaterialTheme.colorScheme.onSurfaceVariant
@@ -467,6 +506,9 @@ fun SettingsTextFieldItem(
         if (focusRequester != null) it.focusRequester(focusRequester) else it
       }
 
+  val hidePasswordDescription = stringResource(R.string.action_hide_password)
+  val showPasswordDescription = stringResource(R.string.action_show_password)
+
   OutlinedTextField(
       value = value,
       onValueChange = onValueChange,
@@ -487,7 +529,8 @@ fun SettingsTextFieldItem(
                     painterResource(R.drawable.visibility_off_24px)
                   }
 
-              val description = if (passwordVisible) "Hide password" else "Show password"
+              val description =
+                  if (passwordVisible) hidePasswordDescription else showPasswordDescription
 
               IconButton(onClick = { passwordVisible = !passwordVisible }) {
                 Icon(painter = painter, contentDescription = description)

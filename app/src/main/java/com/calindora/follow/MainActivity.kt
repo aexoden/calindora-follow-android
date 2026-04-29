@@ -127,12 +127,7 @@ class MainActivity : AppCompatActivity() {
   private val requestNotificationPermissionLauncher =
       registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (!isGranted) {
-          Toast.makeText(
-                  this,
-                  "Notifications disabled. The service will still run reliably, but you won't see credential warnings if authentication fails.",
-                  Toast.LENGTH_LONG,
-              )
-              .show()
+          Toast.makeText(this, R.string.toast_notifications_denied, Toast.LENGTH_LONG).show()
         }
       }
 
@@ -141,11 +136,7 @@ class MainActivity : AppCompatActivity() {
         if (isGranted) {
           startService()
         } else if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
-          Toast.makeText(
-                  this,
-                  "Location permission is required to share your location.",
-                  Toast.LENGTH_LONG,
-              )
+          Toast.makeText(this, R.string.toast_location_permission_required, Toast.LENGTH_LONG)
               .show()
         } else {
           serviceState = serviceState.copy(showLocationSettingsDialog = true)
@@ -413,17 +404,17 @@ fun MainScreen(
   if (showLocationSettingsDialog) {
     AlertDialog(
         onDismissRequest = onDismissLocationSettingsDialog,
-        title = { Text("Location Permission Required") },
-        text = {
-          Text(
-              "Calindora Follow needs location permission to share your location. " +
-                  "Since the permission was permanently denied, you'll need to enable " +
-                  "it from system settings."
-          )
+        title = { Text(stringResource(R.string.dialog_location_permission_title)) },
+        text = { Text(stringResource(R.string.dialog_location_permission_message)) },
+        confirmButton = {
+          TextButton(onClick = onOpenAppSettings) {
+            Text(stringResource(R.string.action_open_settings))
+          }
         },
-        confirmButton = { TextButton(onClick = onOpenAppSettings) { Text("Open Settings") } },
         dismissButton = {
-          TextButton(onClick = onDismissLocationSettingsDialog) { Text("Cancel") }
+          TextButton(onClick = onDismissLocationSettingsDialog) {
+            Text(stringResource(R.string.action_cancel))
+          }
         },
     )
   }
@@ -470,7 +461,7 @@ fun LocationStatusSection(locationData: Location?, lastSubmissionTime: Long, que
             value = String.format(locale, "%.2f ft", locationData.accuracy * FEET_PER_METER),
         )
       } else {
-        Text("Waiting for location data...")
+        Text(stringResource(R.string.label_waiting_for_location))
       }
 
       HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
@@ -640,10 +631,11 @@ fun ToggleButton(
   }
 }
 
+@Composable
 private fun formatSubmissionTime(timestamp: Long): String {
   return if (timestamp > 0) {
     DISPLAY_FORMATTER.format(Instant.ofEpochMilli(timestamp))
   } else {
-    "Never"
+    stringResource(R.string.label_never)
   }
 }
