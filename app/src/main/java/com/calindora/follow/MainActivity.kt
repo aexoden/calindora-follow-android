@@ -52,7 +52,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -159,8 +158,6 @@ class MainActivity : AppCompatActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
-
-    supportActionBar?.hide()
 
     WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -514,12 +511,12 @@ fun CredentialWarningBanner(isVisible: Boolean) {
       exit = fadeOut() + shrinkVertically(),
   ) {
     Surface(
-        color = Color(0xFFFFEEEE),
+        color = MaterialTheme.colorScheme.errorContainer,
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
     ) {
       Text(
           text = stringResource(R.string.credential_warning),
-          color = Color(0xFFB71C1C),
+          color = MaterialTheme.colorScheme.onErrorContainer,
           style = MaterialTheme.typography.bodyMedium,
           modifier = Modifier.padding(8.dp),
       )

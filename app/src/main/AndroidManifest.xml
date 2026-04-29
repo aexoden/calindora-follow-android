@@ -19,8 +19,7 @@
     android:dataExtractionRules="@xml/data_extraction_rules">
     <activity
       android:name=".SettingsActivity"
-      android:label="@string/action_settings"
-      android:theme="@style/Theme.CalindoraFollow.NoActionBar" />
+      android:label="@string/action_settings" />
 
     <service
       android:name=".FollowService"
