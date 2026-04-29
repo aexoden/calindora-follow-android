@@ -16,6 +16,7 @@ import android.location.OnNmeaMessageListener
 import android.os.Binder
 import android.os.Environment
 import android.os.IBinder
+import android.os.SystemClock
 import androidx.core.content.ContextCompat
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
@@ -59,7 +60,7 @@ class FollowService : Service() {
         accuracy = 0f
         time = System.currentTimeMillis()
       }
-  private var mLastReportTime = 0L
+  private var lastReportElapsed = 0L
 
   private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
   private val locationReportDao by lazy { AppDatabase.getInstance(this).locationReportDao() }
@@ -249,7 +250,8 @@ class FollowService : Service() {
 
     locationUpdateCallback?.invoke(location)
 
-    if (tracking && location.time > mLastReportTime + UPDATE_INTERVAL) {
+    val nowElapsed = SystemClock.elapsedRealtime()
+    if (tracking && nowElapsed - lastReportElapsed >= UPDATE_INTERVAL) {
       serviceScope.launch {
         val report = Report(location)
         val signatureInput = report.formatSignatureInput()
@@ -273,7 +275,7 @@ class FollowService : Service() {
         scheduleSubmissionWork()
       }
 
-      mLastReportTime = location.time
+      lastReportElapsed = nowElapsed
     }
   }
 
