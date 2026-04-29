@@ -15,6 +15,7 @@ import android.view.Menu
 import android.widget.Toast
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -57,7 +58,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.preference.PreferenceManager
 import java.time.Instant
@@ -71,7 +71,7 @@ private val DISPLAY_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault())
 
 class MainActivity : AppCompatActivity() {
-  private lateinit var locationViewModel: LocationViewModel
+  private val locationViewModel: LocationViewModel by viewModels()
   private lateinit var binder: FollowService.FollowBinder
 
   private var serviceState by mutableStateOf(ServiceState())
@@ -163,7 +163,6 @@ class MainActivity : AppCompatActivity() {
     supportActionBar?.hide()
 
     WindowCompat.setDecorFitsSystemWindows(window, false)
-    locationViewModel = ViewModelProvider(this)[LocationViewModel::class.java]
 
     checkNotificationPermission()
 
