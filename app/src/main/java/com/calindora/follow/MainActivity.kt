@@ -11,12 +11,11 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
-import android.view.Menu
 import android.widget.Toast
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
-import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -69,7 +68,7 @@ private const val FEET_PER_METER = 3.2808399
 private val DISPLAY_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault())
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : ComponentActivity() {
   private val locationViewModel: LocationViewModel by viewModels()
   private lateinit var binder: FollowService.FollowBinder
 
@@ -194,11 +193,6 @@ class MainActivity : AppCompatActivity() {
         )
       }
     }
-  }
-
-  override fun onCreateOptionsMenu(menu: Menu): Boolean {
-    // We don't need this as we use Compose TopAppBar
-    return true
   }
 
   override fun onResume() {
