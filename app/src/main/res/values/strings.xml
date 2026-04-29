@@ -23,15 +23,12 @@
   <string name="label_tracking_on">TRACKING ON</string>
   <string name="notification_action_reset">Reset</string>
   <string name="notification_action_settings">Settings</string>
-  <string name="notification_channel_credentials_description">Authentication failure notifications</string>
-  <string name="notification_channel_credentials_name">Credential Alerts</string>
   <string name="notification_channel_description">Default Notifications</string>
   <string name="notification_channel_name">Calindora Follow Notifications</string>
   <string name="notification_credential_text">%1$d consecutive reports failed authentication. Please check your device key and secret.</string>
   <string name="notification_credential_title">Authentication Problem Detected</string>
   <string name="notification_text">Sharing Your Location</string>
   <string name="notification_title">Calindora Follow</string>
-  <string name="preference_cancel_on_failure">Cancel On Failure (once)</string>
   <string name="preference_category_status">Status</string>
   <string name="preference_credential_status">Credential Status</string>
   <string name="preference_credential_status_blocked">Authentication blocked due to multiple failures</string>
