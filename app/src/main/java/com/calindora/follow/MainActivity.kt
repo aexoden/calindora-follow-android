@@ -80,8 +80,6 @@ class MainActivity : ComponentActivity() {
       val isLogging: Boolean = false,
       val location: Location? = null,
       val credentialWarningVisible: Boolean = false,
-      val isTrackingPending: Boolean = false,
-      val isLoggingPending: Boolean = false,
       val showLocationSettingsDialog: Boolean = false,
   )
 
@@ -97,8 +95,6 @@ class MainActivity : ComponentActivity() {
                     isTracking = binder.getService().tracking,
                     isLogging = binder.getService().logging,
                     location = location,
-                    isTrackingPending = false,
-                    isLoggingPending = false,
                 )
           }
 
@@ -178,8 +174,6 @@ class MainActivity : ComponentActivity() {
             isBound = serviceState.isBound,
             isTracking = serviceState.isTracking,
             isLogging = serviceState.isLogging,
-            isTrackingPending = serviceState.isTrackingPending,
-            isLoggingPending = serviceState.isLoggingPending,
             locationData = serviceState.location,
             credentialWarningVisible = serviceState.credentialWarningVisible,
             showLocationSettingsDialog = serviceState.showLocationSettingsDialog,
@@ -242,7 +236,7 @@ class MainActivity : ComponentActivity() {
       }
     } else {
       if (serviceState.isBound) {
-        binder.getService().logging = false
+        binder.getService().setLogging(false)
         binder.getService().tracking = false
       }
 
@@ -251,19 +245,22 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun onButtonLog(isChecked: Boolean) {
-    if (serviceState.isBound) {
-      serviceState = serviceState.copy(isLogging = isChecked, isLoggingPending = true)
+    if (!serviceState.isBound) return
 
-      binder.getService().logging = isChecked
+    val service = binder.getService()
+    val success = service.setLogging(isChecked)
+    serviceState = serviceState.copy(isLogging = service.logging)
+
+    if (!success) {
+      Toast.makeText(this, R.string.toast_logging_start_failed, Toast.LENGTH_LONG).show()
     }
   }
 
   private fun onButtonTrack(isChecked: Boolean) {
-    if (serviceState.isBound) {
-      serviceState = serviceState.copy(isTracking = isChecked, isTrackingPending = true)
+    if (!serviceState.isBound) return
 
-      binder.getService().tracking = isChecked
-    }
+    binder.getService().tracking = isChecked
+    serviceState = serviceState.copy(isTracking = binder.getService().tracking)
   }
 
   private fun checkNotificationPermission() {
@@ -340,8 +337,6 @@ fun MainScreen(
     isBound: Boolean,
     isTracking: Boolean,
     isLogging: Boolean,
-    isTrackingPending: Boolean,
-    isLoggingPending: Boolean,
     locationData: Location?,
     credentialWarningVisible: Boolean,
     showLocationSettingsDialog: Boolean,
@@ -382,8 +377,6 @@ fun MainScreen(
           isBound = isBound,
           isTracking = isTracking,
           isLogging = isLogging,
-          isTrackingPending = isTrackingPending,
-          isLoggingPending = isLoggingPending,
           isDebugEnabled = isDebugEnabled,
           onServiceToggle = onServiceToggle,
           onTrackToggle = onTrackToggle,

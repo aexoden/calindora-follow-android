@@ -66,24 +66,37 @@ class FollowService : Service() {
 
   private var nmeaLog: BufferedWriter? = null
 
+  private var _logging = false
+
   var tracking = false
 
-  var logging: Boolean = false
-    set(value) {
-      var success = true
-      if (!field && value) {
-        success = startLogging()
-      } else if (field && !value) {
-        stopLogging()
-      }
+  /**
+   * Whether NMEA logging to local storage is currently active.
+   *
+   * Read-only as changing the state can fail. Use [setLogging] to request a state change.
+   */
+  val logging: Boolean
+    get() = _logging
 
-      field =
-          if (success) {
-            value
-          } else {
-            field
-          }
+  /**
+   * Enable or disable NMEA logging.
+   *
+   * @return true if the requested state is now active. Returns false only when [enabled] is true
+   *   and logging could not be started (e.g. external storage is unavailable or the log file could
+   *   not be created).
+   */
+  fun setLogging(enabled: Boolean): Boolean {
+    if (_logging == enabled) return true
+
+    if (enabled) {
+      if (!startLogging()) return false
+    } else {
+      stopLogging()
     }
+
+    _logging = enabled
+    return true
+  }
 
   private val locationListener = LocationListener { location -> updateLocation(location) }
 
@@ -175,8 +188,7 @@ class FollowService : Service() {
         flush()
       }
     } catch (_: IOException) {
-      stopLogging()
-      logging = false
+      setLogging(false)
     }
   }
 

@@ -69,6 +69,7 @@
   <string name="toast_export_failure">Failed to export reports</string>
   <string name="toast_export_success">Failed reports exported to logs directory</string>
   <string name="toast_location_permission_required">Location permission is required to share your location.</string>
+  <string name="toast_logging_start_failed">Could not start logging. Check that external storage is available.</string>
   <string name="toast_notifications_denied">Notifications disabled. The service will still run reliably, but you won\'t see credential warnings if authentication fails.</string>
   <string name="toast_retry_failure">Failed to retry reports</string>
 </resources>
