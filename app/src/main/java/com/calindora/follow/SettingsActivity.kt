@@ -27,6 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -226,21 +227,10 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
           uiState.isCredentialBlocked ||
               uiState.consecutiveAuthFailures >= Config.Submission.MAX_AUTH_FAILURES
       ) {
-        Button(
+        ActionButtonWithDescription(
+            text = stringResource(R.string.preference_reset_credential_block),
+            description = stringResource(R.string.preference_reset_credential_block_summary),
             onClick = { viewModel.showResetDialog() },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-          Text(stringResource(R.string.preference_reset_credential_block))
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = stringResource(R.string.preference_reset_credential_block_summary),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
         )
       }
 
@@ -248,79 +238,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
       if (uiState.failedReportCount > 0) {
         Spacer(modifier = Modifier.height(16.dp))
 
-        Button(
-            onClick = { viewModel.showRetryDialog() },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-          Text(stringResource(R.string.action_retry_failed_reports))
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text =
-                pluralStringResource(
-                    R.plurals.failed_reports_retry_summary,
-                    uiState.failedReportCount,
-                    uiState.failedReportCount,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = { viewModel.showExportDialog() },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-          Text(stringResource(R.string.action_export_failed_reports))
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text =
-                pluralStringResource(
-                    R.plurals.failed_reports_export_summary,
-                    uiState.failedReportCount,
-                    uiState.failedReportCount,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Button(
-            onClick = { viewModel.showDeleteDialog() },
-            modifier = Modifier.fillMaxWidth(),
-            colors =
-                ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error,
-                    contentColor = MaterialTheme.colorScheme.onError,
-                ),
-        ) {
-          Text(stringResource(R.string.action_delete_failed_reports))
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text =
-                pluralStringResource(
-                    R.plurals.failed_reports_delete_summary,
-                    uiState.failedReportCount,
-                    uiState.failedReportCount,
-                ),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth(),
+        FailedReportsActions(
+            failedReportCount = uiState.failedReportCount,
+            onRetryClick = { viewModel.showRetryDialog() },
+            onExportClick = { viewModel.showExportDialog() },
+            onDeleteClick = { viewModel.showDeleteDialog() },
         )
       }
     }
@@ -328,103 +250,152 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 
   // Reset Confirmation Dialog
   if (uiState.showResetDialog) {
-    AlertDialog(
-        onDismissRequest = { viewModel.dismissResetDialog() },
-        title = { Text(stringResource(R.string.dialog_reset_title)) },
-        text = { Text(stringResource(R.string.dialog_reset_message)) },
-        confirmButton = {
-          TextButton(onClick = { viewModel.resetCredentialBlock() }) {
-            Text(stringResource(R.string.action_reset))
-          }
-        },
-        dismissButton = {
-          TextButton(onClick = { viewModel.dismissResetDialog() }) {
-            Text(stringResource(R.string.action_cancel))
-          }
-        },
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_reset_title),
+        text = stringResource(R.string.dialog_reset_message),
+        confirmText = stringResource(R.string.action_reset),
+        onConfirm = { viewModel.resetCredentialBlock() },
+        onDismiss = { viewModel.dismissResetDialog() },
     )
   }
 
   // Retry Failed Reports Confirmation Dialog
   if (uiState.showRetryDialog) {
-    AlertDialog(
-        onDismissRequest = { viewModel.dismissRetryDialog() },
-        title = { Text(stringResource(R.string.dialog_retry_title)) },
-        text = {
-          Text(
-              pluralStringResource(
-                  R.plurals.dialog_retry_message,
-                  uiState.failedReportCount,
-                  uiState.failedReportCount,
-              )
-          )
-        },
-        confirmButton = {
-          TextButton(onClick = { viewModel.retryFailedReports() }) {
-            Text(stringResource(R.string.action_retry))
-          }
-        },
-        dismissButton = {
-          TextButton(onClick = { viewModel.dismissRetryDialog() }) {
-            Text(stringResource(R.string.action_cancel))
-          }
-        },
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_retry_title),
+        text =
+            pluralStringResource(
+                R.plurals.dialog_retry_message,
+                uiState.failedReportCount,
+                uiState.failedReportCount,
+            ),
+        confirmText = stringResource(R.string.action_retry),
+        onConfirm = { viewModel.retryFailedReports() },
+        onDismiss = { viewModel.dismissRetryDialog() },
     )
   }
 
   // Export Failed Reports Dialog
   if (uiState.showExportDialog) {
-    AlertDialog(
-        onDismissRequest = { viewModel.dismissExportDialog() },
-        title = { Text(stringResource(R.string.dialog_export_title)) },
-        text = {
-          Text(
-              pluralStringResource(
-                  R.plurals.dialog_export_message,
-                  uiState.failedReportCount,
-                  uiState.failedReportCount,
-              )
-          )
-        },
-        confirmButton = {
-          TextButton(onClick = { viewModel.exportFailedReports() }) {
-            Text(stringResource(R.string.action_export))
-          }
-        },
-        dismissButton = {
-          TextButton(onClick = { viewModel.dismissExportDialog() }) {
-            Text(stringResource(R.string.action_cancel))
-          }
-        },
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_export_title),
+        text =
+            pluralStringResource(
+                R.plurals.dialog_export_message,
+                uiState.failedReportCount,
+                uiState.failedReportCount,
+            ),
+        confirmText = stringResource(R.string.action_export),
+        onConfirm = { viewModel.exportFailedReports() },
+        onDismiss = { viewModel.dismissExportDialog() },
     )
   }
 
   // Delete Failed Reports Dialog
   if (uiState.showDeleteDialog) {
-    AlertDialog(
-        onDismissRequest = { viewModel.dismissDeleteDialog() },
-        title = { Text(stringResource(R.string.dialog_delete_title)) },
-        text = {
-          Text(
-              pluralStringResource(
-                  R.plurals.dialog_delete_message,
-                  uiState.failedReportCount,
-                  uiState.failedReportCount,
-              )
-          )
-        },
-        confirmButton = {
-          TextButton(onClick = { viewModel.deleteFailedReports() }) {
-            Text(stringResource(R.string.action_delete))
-          }
-        },
-        dismissButton = {
-          TextButton(onClick = { viewModel.dismissDeleteDialog() }) {
-            Text(stringResource(R.string.action_cancel))
-          }
-        },
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_delete_title),
+        text =
+            pluralStringResource(
+                R.plurals.dialog_delete_message,
+                uiState.failedReportCount,
+                uiState.failedReportCount,
+            ),
+        confirmText = stringResource(R.string.action_delete),
+        onConfirm = { viewModel.deleteFailedReports() },
+        onDismiss = { viewModel.dismissDeleteDialog() },
     )
   }
+}
+
+@Composable
+private fun ActionButtonWithDescription(
+    text: String,
+    description: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    colors: ButtonColors = ButtonDefaults.buttonColors(),
+) {
+  Column(modifier = modifier.fillMaxWidth()) {
+    Button(onClick = onClick, modifier = Modifier.fillMaxWidth(), colors = colors) { Text(text) }
+    Spacer(modifier = Modifier.height(8.dp))
+    Text(
+        text = description,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+  }
+}
+
+@Composable
+private fun ConfirmationDialog(
+    title: String,
+    text: String,
+    confirmText: String,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+  AlertDialog(
+      onDismissRequest = onDismiss,
+      title = { Text(title) },
+      text = { Text(text) },
+      confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText) } },
+      dismissButton = {
+        TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+      },
+  )
+}
+
+@Composable
+private fun FailedReportsActions(
+    failedReportCount: Int,
+    onRetryClick: () -> Unit,
+    onExportClick: () -> Unit,
+    onDeleteClick: () -> Unit,
+) {
+  ActionButtonWithDescription(
+      text = stringResource(R.string.action_retry_failed_reports),
+      description =
+          pluralStringResource(
+              R.plurals.failed_reports_retry_summary,
+              failedReportCount,
+              failedReportCount,
+          ),
+      onClick = onRetryClick,
+  )
+
+  Spacer(modifier = Modifier.height(16.dp))
+
+  ActionButtonWithDescription(
+      text = stringResource(R.string.action_export_failed_reports),
+      description =
+          pluralStringResource(
+              R.plurals.failed_reports_export_summary,
+              failedReportCount,
+              failedReportCount,
+          ),
+      onClick = onExportClick,
+  )
+
+  Spacer(modifier = Modifier.height(16.dp))
+
+  ActionButtonWithDescription(
+      text = stringResource(R.string.action_delete_failed_reports),
+      description =
+          pluralStringResource(
+              R.plurals.failed_reports_delete_summary,
+              failedReportCount,
+              failedReportCount,
+          ),
+      onClick = onDeleteClick,
+      colors =
+          ButtonDefaults.buttonColors(
+              containerColor = MaterialTheme.colorScheme.error,
+              contentColor = MaterialTheme.colorScheme.onError,
+          ),
+  )
 }
 
 @Composable
