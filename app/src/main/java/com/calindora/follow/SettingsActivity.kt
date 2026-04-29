@@ -65,7 +65,7 @@ import kotlinx.coroutines.delay
 private const val SAVED_INDICATOR_VISIBLE_MS = 1500L
 
 class SettingsActivity : AppCompatActivity() {
-  private val viewModel: SettingsViewModel by viewModels { SettingsViewModelFactory(application) }
+  private val viewModel: SettingsViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)

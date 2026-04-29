@@ -6,8 +6,6 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import androidx.work.ExistingWorkPolicy
@@ -270,17 +268,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         )
       }
     }
-  }
-}
-
-/** Factory for creating SettingsViewModel with the Application context */
-class SettingsViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
-  override fun <T : ViewModel> create(modelClass: Class<T>): T {
-    if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
-      @Suppress("UNCHECKED_CAST")
-      return SettingsViewModel(application) as T
-    }
-    throw IllegalArgumentException("Unknown ViewModel class")
   }
 }
 
