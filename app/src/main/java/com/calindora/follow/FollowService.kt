@@ -46,11 +46,11 @@ private val SIGNATURE_TIMESTAMP_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx").withZone(ZoneOffset.UTC)
 
 class FollowService : Service() {
-  private val mBinder = FollowBinder()
+  private val binder = FollowBinder()
 
   private var locationUpdateCallback: ((Location) -> Unit)? = null
 
-  private var mLocation: Location =
+  var location: Location =
       Location("").apply {
         latitude = 0.0
         longitude = 0.0
@@ -60,6 +60,8 @@ class FollowService : Service() {
         accuracy = 0f
         time = System.currentTimeMillis()
       }
+    private set
+
   private var lastReportElapsed = 0L
 
   private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -86,12 +88,9 @@ class FollowService : Service() {
           }
     }
 
-  private val mLocationListener = LocationListener { location -> updateLocation(location) }
+  private val locationListener = LocationListener { location -> updateLocation(location) }
 
-  private val mNmeaListener = OnNmeaMessageListener { nmea, _ -> logNmea(nmea) }
-
-  val location: Location
-    get() = mLocation
+  private val nmeaListener = OnNmeaMessageListener { nmea, _ -> logNmea(nmea) }
 
   /*
    * Callback Methods
@@ -99,7 +98,7 @@ class FollowService : Service() {
 
   fun setLocationUpdateCallback(callback: (Location) -> Unit) {
     locationUpdateCallback = callback
-    callback(mLocation)
+    callback(location)
   }
 
   fun unregisterLocationCallback() {
@@ -123,7 +122,7 @@ class FollowService : Service() {
   }
 
   override fun onBind(intent: Intent): IBinder {
-    return mBinder
+    return binder
   }
 
   override fun onDestroy() {
@@ -213,14 +212,14 @@ class FollowService : Service() {
           LocationManager.GPS_PROVIDER,
           0L,
           0.0f,
-          mLocationListener,
+          locationListener,
       )
     }
   }
 
   private fun stopLocationUpdates() {
     val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
-    locationManager?.removeUpdates(mLocationListener)
+    locationManager?.removeUpdates(locationListener)
   }
 
   private fun startLogging(): Boolean {
@@ -234,7 +233,7 @@ class FollowService : Service() {
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
     ) {
-      locationManager?.addNmeaListener(mNmeaListener, null)
+      locationManager?.addNmeaListener(nmeaListener, null)
     }
 
     return true
@@ -242,13 +241,13 @@ class FollowService : Service() {
 
   private fun stopLogging() {
     val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
-    locationManager?.removeNmeaListener(mNmeaListener)
+    locationManager?.removeNmeaListener(nmeaListener)
     nmeaLog?.close()
     nmeaLog = null
   }
 
   private fun updateLocation(location: Location) {
-    mLocation = location
+    this.location = location
 
     locationUpdateCallback?.invoke(location)
 

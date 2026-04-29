@@ -72,7 +72,7 @@ private val DISPLAY_FORMATTER =
 
 class MainActivity : AppCompatActivity() {
   private lateinit var locationViewModel: LocationViewModel
-  private lateinit var mBinder: FollowService.FollowBinder
+  private lateinit var binder: FollowService.FollowBinder
 
   private var serviceState by mutableStateOf(ServiceState())
 
@@ -87,11 +87,10 @@ class MainActivity : AppCompatActivity() {
       val showLocationSettingsDialog: Boolean = false,
   )
 
-  private val mConnection =
+  private val connection =
       object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-          val binder = service as FollowService.FollowBinder
-          mBinder = binder
+          binder = service as FollowService.FollowBinder
 
           binder.getService().setLocationUpdateCallback { location ->
             serviceState =
@@ -114,7 +113,7 @@ class MainActivity : AppCompatActivity() {
               )
         }
 
-        override fun onServiceDisconnected(arg0: ComponentName) {
+        override fun onServiceDisconnected(name: ComponentName) {
           serviceState = serviceState.copy(isBound = false, isTracking = false, isLogging = false)
         }
       }
@@ -262,8 +261,8 @@ class MainActivity : AppCompatActivity() {
       }
     } else {
       if (serviceState.isBound) {
-        mBinder.getService().logging = false
-        mBinder.getService().tracking = false
+        binder.getService().logging = false
+        binder.getService().tracking = false
       }
 
       stopService()
@@ -274,7 +273,7 @@ class MainActivity : AppCompatActivity() {
     if (serviceState.isBound) {
       serviceState = serviceState.copy(isLogging = isChecked, isLoggingPending = true)
 
-      mBinder.getService().logging = isChecked
+      binder.getService().logging = isChecked
     }
   }
 
@@ -282,7 +281,7 @@ class MainActivity : AppCompatActivity() {
     if (serviceState.isBound) {
       serviceState = serviceState.copy(isTracking = isChecked, isTrackingPending = true)
 
-      mBinder.getService().tracking = isChecked
+      binder.getService().tracking = isChecked
     }
   }
 
@@ -305,14 +304,14 @@ class MainActivity : AppCompatActivity() {
 
   private fun bindService() {
     if (!serviceState.isBound) {
-      Intent(this, FollowService::class.java).also { intent -> bindService(intent, mConnection, 0) }
+      Intent(this, FollowService::class.java).also { intent -> bindService(intent, connection, 0) }
     }
   }
 
   private fun unbindService() {
     if (serviceState.isBound) {
-      mBinder.getService().unregisterLocationCallback()
-      unbindService(mConnection)
+      binder.getService().unregisterLocationCallback()
+      unbindService(connection)
       serviceState = serviceState.copy(isBound = false)
     }
   }
