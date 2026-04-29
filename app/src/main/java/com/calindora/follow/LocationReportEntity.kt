@@ -63,7 +63,7 @@ interface LocationReportDao {
   @Query("UPDATE location_reports SET submittedAt = :timestamp WHERE id = :id")
   suspend fun markAsSubmitted(id: Long, timestamp: Long)
 
-  @Query("UPDATE location_reports SET submissionAttempts = submissionAttempts + 1 WHERE ID = :id")
+  @Query("UPDATE location_reports SET submissionAttempts = submissionAttempts + 1 WHERE id = :id")
   suspend fun incrementSubmissionAttempts(id: Long)
 
   @Query(
