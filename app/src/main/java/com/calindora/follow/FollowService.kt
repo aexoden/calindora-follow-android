@@ -35,8 +35,6 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
-private const val UPDATE_INTERVAL = 5000
-
 private val LOG_FILE_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
 private val BODY_TIMESTAMP_FORMATTER =
@@ -251,7 +249,7 @@ class FollowService : Service() {
     locationUpdateCallback?.invoke(location)
 
     val nowElapsed = SystemClock.elapsedRealtime()
-    if (tracking && nowElapsed - lastReportElapsed >= UPDATE_INTERVAL) {
+    if (tracking && nowElapsed - lastReportElapsed >= Config.Tracking.UPDATE_INTERVAL_MS) {
       serviceScope.launch {
         val report = Report(location)
         val signatureInput = report.formatSignatureInput()

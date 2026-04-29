@@ -26,13 +26,11 @@ internal interface FollowApi {
 }
 
 internal object FollowApiFactory {
-  private const val CONNECT_TIMEOUT_SECONDS = 10L
-  private const val READ_TIMEOUT_SECONDS = 10L
 
   private val httpClient: OkHttpClient by lazy {
     OkHttpClient.Builder()
-        .connectTimeout(CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-        .readTimeout(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .connectTimeout(Config.Network.CONNECT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .readTimeout(Config.Network.READ_TIMEOUT_SECONDS, TimeUnit.SECONDS)
         .apply {
           if (BuildConfig.DEBUG) {
             // HEADERS, not BODY - bodies contain location data we don't want to log

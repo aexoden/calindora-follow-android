@@ -100,13 +100,9 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
   private val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
 
   companion object {
-    const val MAX_BATCH_SIZE = 50
-    const val MAX_AUTH_FAILURES = 3
-    const val MAX_SUBMISSION_ATTEMPTS = 5
     const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
     const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
     const val UNIQUE_WORK_NAME = "submission_work"
-    private const val BACKOFF_DELAY_MS = 30_000L
     const val CREDENTIAL_NOTIFICATION_ID = 38
 
     fun buildWorkRequest(expedited: Boolean = false): OneTimeWorkRequest {
@@ -114,7 +110,11 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
       return OneTimeWorkRequestBuilder<SubmissionWorker>()
           .setConstraints(constraints)
-          .setBackoffCriteria(BackoffPolicy.LINEAR, BACKOFF_DELAY_MS, TimeUnit.MILLISECONDS)
+          .setBackoffCriteria(
+              BackoffPolicy.LINEAR,
+              Config.Submission.BACKOFF_DELAY_MS,
+              TimeUnit.MILLISECONDS,
+          )
           .apply {
             if (expedited) {
               setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -172,7 +172,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
         }
 
         val authFailureCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0)
-        if (authFailureCount >= MAX_AUTH_FAILURES) {
+        if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
           preferences.edit(commit = true) { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
           notifyCredentialIssue(authFailureCount)
           return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
@@ -190,7 +190,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             }
 
         try {
-          var reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
+          var reports = locationReportDao.getUnsubmittedReports(Config.Submission.MAX_BATCH_SIZE)
           var processedAllReports = true
           var continueSubmission = true
 
@@ -223,7 +223,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                     locationReportDao.incrementSubmissionAttempts(report.id)
                     val newAttempts = report.submissionAttempts + 1
 
-                    if (newAttempts >= MAX_SUBMISSION_ATTEMPTS) {
+                    if (newAttempts >= Config.Submission.MAX_ATTEMPTS) {
                       // This report has failed too many times, so it's probable that it's an issue
                       // with the report itself. We'll mark it as permanently failed, and if it does
                       // turn out to be a temporary issue with the server, the user can reset
@@ -232,7 +232,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       locationReportDao.markAsPermanentlyFailed(
                           report.id,
                           result.errorCode,
-                          "Exceeded max attempts ($MAX_SUBMISSION_ATTEMPTS): ${result.errorMessage}",
+                          "Exceeded max attempts (${Config.Submission.MAX_ATTEMPTS}): ${result.errorMessage}",
                       )
                       processedAllReports = false
                       continue
@@ -243,7 +243,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                           putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount)
                         }
 
-                        if (newCount >= MAX_AUTH_FAILURES) {
+                        if (newCount >= Config.Submission.MAX_AUTH_FAILURES) {
                           preferences.edit(commit = true) {
                             putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
                           }
@@ -264,13 +264,13 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             }
 
             if (continueSubmission) {
-              reports = locationReportDao.getUnsubmittedReports(MAX_BATCH_SIZE)
+              reports = locationReportDao.getUnsubmittedReports(Config.Submission.MAX_BATCH_SIZE)
             }
           }
 
           // Cleanup old reports
-          val sevenDaysAgo = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(7)
-          locationReportDao.deleteOldSubmittedReports(sevenDaysAgo)
+          val cutoff = System.currentTimeMillis() - Config.Retention.SUBMITTED_REPORT_TTL_MS
+          locationReportDao.deleteOldSubmittedReports(cutoff)
 
           return@withContext if (processedAllReports) {
             Result.success(workDataOf("submission_time" to System.currentTimeMillis()))

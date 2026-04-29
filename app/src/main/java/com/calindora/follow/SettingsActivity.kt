@@ -63,8 +63,6 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
-private const val SAVED_INDICATOR_VISIBLE_MS = 1500L
-
 class SettingsActivity : ComponentActivity() {
   private val viewModel: SettingsViewModel by viewModels()
 
@@ -97,7 +95,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   LaunchedEffect(viewModel) {
     viewModel.savedEvents.collect {
       savedIndicatorVisible = true
-      delay(SAVED_INDICATOR_VISIBLE_MS)
+      delay(Config.Ui.SAVED_INDICATOR_VISIBLE_MS)
       savedIndicatorVisible = false
     }
   }
@@ -226,7 +224,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
       // Reset Credential Block (visible if blocked or enough auth failures)
       if (
           uiState.isCredentialBlocked ||
-              uiState.consecutiveAuthFailures >= SubmissionWorker.MAX_AUTH_FAILURES
+              uiState.consecutiveAuthFailures >= Config.Submission.MAX_AUTH_FAILURES
       ) {
         Button(
             onClick = { viewModel.showResetDialog() },
@@ -472,7 +470,7 @@ private fun CredentialStatusCard(isBlocked: Boolean, consecutiveAuthFailures: In
                     R.plurals.preference_credential_status_failures,
                     consecutiveAuthFailures,
                     consecutiveAuthFailures,
-                    SubmissionWorker.MAX_AUTH_FAILURES,
+                    Config.Submission.MAX_AUTH_FAILURES,
                 ) to MaterialTheme.colorScheme.onSurfaceVariant
             else ->
                 stringResource(R.string.preference_credential_status_ok) to

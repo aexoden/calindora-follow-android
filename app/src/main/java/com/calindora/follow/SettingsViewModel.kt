@@ -24,8 +24,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-private const val SAVE_DEBOUNCE_MS = 500L
-
 /** UI state for the Settings screen */
 data class SettingsUiState(
     val serviceUrl: String = "",
@@ -100,7 +98,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .map { it.serviceUrl }
           .distinctUntilChanged()
           .drop(1)
-          .debounce(SAVE_DEBOUNCE_MS)
+          .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { url ->
             prefs.edit { putString(Preferences.KEY_SERVICE_URL, url) }
             _savedEvents.tryEmit(Unit)
@@ -113,7 +111,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .map { it.deviceKey }
           .distinctUntilChanged()
           .drop(1)
-          .debounce(SAVE_DEBOUNCE_MS)
+          .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { key ->
             prefs.edit { putString(Preferences.KEY_DEVICE_KEY, key) }
             _savedEvents.tryEmit(Unit)
@@ -126,7 +124,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .map { it.deviceSecret }
           .distinctUntilChanged()
           .drop(1)
-          .debounce(SAVE_DEBOUNCE_MS)
+          .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { secret ->
             prefs.edit { putString(Preferences.KEY_DEVICE_SECRET, secret) }
             _savedEvents.tryEmit(Unit)
