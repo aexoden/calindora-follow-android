@@ -1,6 +1,7 @@
 package com.calindora.follow
 
 import android.app.Application
+import android.app.NotificationManager
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
@@ -303,6 +304,11 @@ class SettingsRepository(
                     ExistingWorkPolicy.REPLACE,
                     SubmissionWorker.buildWorkRequest(),
                 )
+
+            // Cancel the notification if it's showing
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(
+                SubmissionWorker.CREDENTIAL_NOTIFICATION_ID
+            )
 
             true
           }

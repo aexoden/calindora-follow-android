@@ -42,7 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-private const val CREDENTIAL_NOTIFICATION_ID = 38
 private const val CREDENTIAL_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.credentials"
 
 private val LOG_FILE_FORMATTER =
@@ -81,7 +80,7 @@ class CredentialResetReceiver : BroadcastReceiver() {
 
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(CREDENTIAL_NOTIFICATION_ID)
+        notificationManager.cancel(SubmissionWorker.CREDENTIAL_NOTIFICATION_ID)
       } finally {
         pendingResult.finish()
       }
@@ -108,6 +107,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
     const val UNIQUE_WORK_NAME = "submission_work"
     private const val BACKOFF_DELAY_MS = 30_000L
+    const val CREDENTIAL_NOTIFICATION_ID = 38
 
     fun buildWorkRequest(expedited: Boolean = false): OneTimeWorkRequest {
       val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -292,7 +292,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
     ensureNotificationChannel(notificationManager)
 
-    // Create a PendingIntent for Settings
+    // Tapping the notification goes to Settings where the user can update their credentials
     val settingsIntent =
         Intent(applicationContext, SettingsActivity::class.java).apply {
           flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -305,17 +305,32 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             PendingIntent.FLAG_IMMUTABLE,
         )
 
+    // "Reset" action goes to CredentialResetReceiver which clears the block, re-enqueues
+    // submission work, and dismisses the notification.
+    val resetIntent = Intent(applicationContext, CredentialResetReceiver::class.java)
+    val resetPendingIntent =
+        PendingIntent.getBroadcast(applicationContext, 1, resetIntent, PendingIntent.FLAG_IMMUTABLE)
+
     // Build notification with multiple actions
     val builder =
         NotificationCompat.Builder(applicationContext, CREDENTIAL_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notification)
-            .setContentTitle("Authentication Problem Detected")
+            .setContentTitle(applicationContext.getString(R.string.notification_credential_title))
             .setContentText(
-                "$failureCount consecutive reports failed authentication. Please check your device key and secret."
+                applicationContext.getString(R.string.notification_credential_text, failureCount)
             )
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setContentIntent(settingsPendingIntent)
-            .addAction(R.drawable.ic_stat_notification, "Check Settings", settingsPendingIntent)
+            .addAction(
+                R.drawable.check_24px,
+                applicationContext.getString(R.string.notification_action_reset),
+                resetPendingIntent,
+            )
+            .addAction(
+                R.drawable.settings_24px,
+                applicationContext.getString(R.string.notification_action_settings),
+                settingsPendingIntent,
+            )
             .setAutoCancel(false)
 
     notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
