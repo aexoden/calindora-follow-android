@@ -6,7 +6,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.core.app.NotificationCompat
@@ -27,9 +26,7 @@ import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
 import java.io.IOException
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
-import java.net.MalformedURLException
 import java.net.URL
 import java.time.Instant
 import java.time.ZoneId
@@ -41,6 +38,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
+import retrofit2.Response
 
 private const val CREDENTIAL_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.credentials"
 
@@ -56,8 +55,9 @@ sealed class SubmissionResult {
 }
 
 private data class SubmissionConfig(
-    val url: String,
+    val deviceKey: String,
     val secret: String,
+    val api: FollowApi,
 )
 
 class CredentialResetReceiver : BroadcastReceiver() {
@@ -163,9 +163,6 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
       }
     }
   }
-
-  private fun HttpURLConnection.readErrorBody(): String =
-      errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
 
   override suspend fun doWork(): Result =
       withContext(Dispatchers.IO) {
@@ -374,105 +371,98 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     if (key.isEmpty()) return ConfigResult.Invalid("Device key is not configured")
     if (secret.isEmpty()) return ConfigResult.Invalid("Device secret is not configured")
 
-    val submissionUrl =
+    val parsedUrl =
         try {
-          URL("$baseUrl/api/v1/devices/${Uri.encode(key)}/reports")
-        } catch (_: MalformedURLException) {
+          URL(baseUrl)
+        } catch (_: java.net.MalformedURLException) {
           return ConfigResult.Invalid("Service URL is not a valid URL")
         }
 
-    if (submissionUrl.protocol != "https") {
+    if (parsedUrl.protocol != "https") {
       return ConfigResult.Invalid("Service URL must use HTTPS")
     }
 
-    if (submissionUrl.host.isNullOrEmpty()) {
+    if (parsedUrl.host.isNullOrEmpty()) {
       return ConfigResult.Invalid("Service URL must have a valid host")
     }
 
-    return ConfigResult.Valid(SubmissionConfig(submissionUrl.toString(), secret))
+    return ConfigResult.Valid(
+        SubmissionConfig(deviceKey = key, secret = secret, api = FollowApiFactory.create(baseUrl))
+    )
   }
 
-  private fun submitSingleReport(
+  private suspend fun submitSingleReport(
       report: LocationReportEntity,
       submissionConfig: SubmissionConfig,
   ): SubmissionResult {
-    val signature = formatSignature(report.signatureInput, submissionConfig.secret)
-    var connection: HttpURLConnection? = null
-
-    return try {
-      connection = (URL(submissionConfig.url)).openConnection() as HttpURLConnection
-      connection.doInput = true
-      connection.doOutput = true
-      connection.requestMethod = "POST"
-      connection.connectTimeout = 10000
-      connection.readTimeout = 10000
-
-      connection.setRequestProperty("Content-Type", "application/json")
-      connection.setRequestProperty("Accept", "application/json")
-      connection.setRequestProperty("X-Signature", signature)
-
-      OutputStreamWriter(connection.outputStream).use { out -> out.write(report.body) }
-
-      when (val responseCode = connection.responseCode) {
-        HttpURLConnection.HTTP_CREATED -> SubmissionResult.Success
-
-        HttpURLConnection.HTTP_UNAUTHORIZED -> {
-          val errorMessage = connection.readErrorBody()
-
-          // This block is a bit of a heuristic as the v1 API doesn't have a well-defined error
-          // response format.
-          //
-          // BUG: This doesn't match the current server behavior at all. The server has no way to
-          // distinguish an invalid signature from an incorrect secret, so it reports them all bad
-          // with the error "The provided signature was invalid". We don't want to treat all auth
-          // failures as permanent, so we are just leaving this bug for now, and will only be able
-          // to address it with a future v2 API.
-          if (errorMessage.contains("invalid signature", ignoreCase = true)) {
-            // The server has our key but couldn't verify the signature, so the most likely result
-            // is a failure on either side in generating consistent input text. We treat this as
-            // a permanent error since it's almost certainly a bug on either side.
-            SubmissionResult.PermanentError(
-                responseCode,
-                "Invalid signature for this report",
-            )
-          } else {
-            // The server otherwise rejected our credentials, which could be due to an incorrect
-            // secret or a temporary server issue.
-            SubmissionResult.TransientError(responseCode, errorMessage.ifEmpty { "Unauthorized" })
-          }
-        }
-
-        HttpURLConnection.HTTP_NOT_FOUND -> {
-          connection.readErrorBody()
-          SubmissionResult.PermanentError(responseCode, "Unknown API key")
-        }
-
-        HttpURLConnection.HTTP_BAD_REQUEST,
-        HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
-        422 -> {
-          val body = connection.readErrorBody()
-          SubmissionResult.PermanentError(
-              responseCode,
-              body.ifEmpty { "Client error $responseCode" },
+    val payload =
+        try {
+          FollowJson.decodeFromString<LocationReportPayload>(report.body)
+        } catch (e: SerializationException) {
+          return SubmissionResult.PermanentError(
+              0,
+              "Stored report body is malformed: ${e.message}",
           )
         }
 
-        HttpURLConnection.HTTP_CLIENT_TIMEOUT,
-        429,
-        in 500..599 -> {
-          connection.readErrorBody()
-          SubmissionResult.TransientError(responseCode, "Server error")
-        }
+    val signature = formatSignature(report.signatureInput, submissionConfig.secret)
 
-        else -> {
-          connection.readErrorBody()
-          SubmissionResult.TransientError(responseCode, "Unexpected error")
-        }
-      }
+    return try {
+      val response =
+          submissionConfig.api.submitReport(submissionConfig.deviceKey, signature, payload)
+      mapResponseToResult(response)
     } catch (e: IOException) {
       SubmissionResult.TransientError(-1, e.message ?: "Network error")
-    } finally {
-      connection?.disconnect()
+    }
+  }
+
+  private fun mapResponseToResult(response: Response<Unit>): SubmissionResult {
+    val code = response.code()
+    if (code == HttpURLConnection.HTTP_CREATED) return SubmissionResult.Success
+
+    // `errorBody().string()` consumes and closes the body, calling it once up-front guarantees we
+    // don't leak a connection on branches that don't otherwise read it.
+    val errorBody = response.errorBody()?.use { it.string() }.orEmpty()
+
+    return when (code) {
+      HttpURLConnection.HTTP_UNAUTHORIZED -> {
+        // BUG: The server doesn't actually ever generate this exact string. The server has no way
+        // to distinguish an invalid signature from an incorrect secret, so it reports them all bad
+        // with the error "The provided signature was invalid". We don't want to treat all auth
+        // failures as permanent, so we are just leaving this bug for now, and will only be able
+        // to address it with a future v2 API.
+        if (errorBody.contains("invalid signature", ignoreCase = true)) {
+          SubmissionResult.PermanentError(
+              code,
+              "Invalid signature for this report",
+          )
+        } else {
+          SubmissionResult.TransientError(code, errorBody.ifEmpty { "Unauthorized" })
+        }
+      }
+
+      HttpURLConnection.HTTP_NOT_FOUND -> {
+        SubmissionResult.PermanentError(code, "Unknown API key")
+      }
+
+      HttpURLConnection.HTTP_BAD_REQUEST,
+      HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
+      422 -> {
+        SubmissionResult.PermanentError(
+            code,
+            errorBody.ifEmpty { "Client error $code" },
+        )
+      }
+
+      HttpURLConnection.HTTP_CLIENT_TIMEOUT,
+      429,
+      in 500..599 -> {
+        SubmissionResult.TransientError(code, "Server error")
+      }
+
+      else -> {
+        SubmissionResult.TransientError(code, "Unexpected error")
+      }
     }
   }
 }

@@ -1,6 +1,7 @@
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.compose)
+  alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
 }
 
@@ -34,7 +35,10 @@ android {
     }
   }
 
-  buildFeatures { compose = true }
+  buildFeatures {
+    buildConfig = true
+    compose = true
+  }
 
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
@@ -60,7 +64,12 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.kotlinx.coroutines.core)
+  implementation(libs.kotlinx.serialization.json)
   implementation(libs.material)
+  implementation(libs.okhttp)
+  implementation(libs.okhttp.logging.interceptor)
+  implementation(libs.retrofit)
+  implementation(libs.retrofit.converter.kotlinx.serialization)
   ksp(libs.androidx.room.compiler)
   testImplementation(libs.junit)
   androidTestImplementation(libs.androidx.test.ext.junit)

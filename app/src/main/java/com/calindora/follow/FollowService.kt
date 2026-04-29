@@ -34,7 +34,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 
 private const val UPDATE_INTERVAL = 5000
 
@@ -256,7 +255,7 @@ class FollowService : Service() {
       serviceScope.launch {
         val report = Report(location)
         val signatureInput = report.formatSignatureInput()
-        val body = report.formatBody()
+        val body = FollowJson.encodeToString(report.toPayload())
 
         val reportEntity =
             LocationReportEntity(
@@ -294,61 +293,26 @@ class FollowService : Service() {
    */
 
   class Report(private val location: Location) {
-    private val timestamp: Long
-      get() = location.time
+    fun toPayload(): LocationReportPayload =
+        LocationReportPayload(
+            timestamp = formatTimestamp(location.time),
+            latitude = formatNumber(location.latitude),
+            longitude = formatNumber(location.longitude),
+            altitude = formatNumber(location.altitude),
+            speed = formatNumber(location.speed.toDouble()),
+            bearing = formatNumber(location.bearing.toDouble()),
+            accuracy = formatNumber(location.accuracy.toDouble()),
+        )
 
-    private val latitude: String
-      get() = formatNumber(location.latitude)
-
-    private val longitude: String
-      get() = formatNumber(location.longitude)
-
-    private val altitude: String
-      get() = formatNumber(location.altitude)
-
-    private val speed: String
-      get() = formatNumber(location.speed.toDouble())
-
-    private val bearing: String
-      get() = formatNumber(location.bearing.toDouble())
-
-    private val accuracy: String
-      get() = formatNumber(location.accuracy.toDouble())
-
-    /*
-     * Public Methods
-     */
-
-    fun formatBody(): String =
-        JSONObject()
-            .apply {
-              put("timestamp", formatTimestamp(timestamp))
-              put("latitude", latitude)
-              put("longitude", longitude)
-              put("altitude", altitude)
-              put("speed", speed)
-              put("bearing", bearing)
-              put("accuracy", accuracy)
-            }
-            .toString()
-
-    fun formatSignatureInput(): String {
-      val input = StringBuilder()
-
-      input.append(formatTimestampSignature(timestamp))
-      input.append(latitude)
-      input.append(longitude)
-      input.append(altitude)
-      input.append(speed)
-      input.append(bearing)
-      input.append(accuracy)
-
-      return input.toString()
+    fun formatSignatureInput(): String = buildString {
+      append(formatTimestampSignature(location.time))
+      append(formatNumber(location.latitude))
+      append(formatNumber(location.longitude))
+      append(formatNumber(location.altitude))
+      append(formatNumber(location.speed.toDouble()))
+      append(formatNumber(location.bearing.toDouble()))
+      append(formatNumber(location.accuracy.toDouble()))
     }
-
-    /*
-     * Private Methods
-     */
 
     private fun formatNumber(number: Double): String {
       val output = String.format(Locale.US, "%.12f", number)
