@@ -88,7 +88,7 @@ class FollowService : Service() {
 
   private val mLocationListener = LocationListener { location -> updateLocation(location) }
 
-  private val mNmeaListener = OnNmeaMessageListener { nmea, timestamp -> logNmea(nmea, timestamp) }
+  private val mNmeaListener = OnNmeaMessageListener { nmea, _ -> logNmea(nmea) }
 
   val location: Location
     get() = mLocation
@@ -172,10 +172,12 @@ class FollowService : Service() {
     return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
   }
 
-  @Suppress("UNUSED_PARAMETER")
-  private fun logNmea(nmea: String, timestamp: Long) {
+  private fun logNmea(nmea: String) {
     try {
-      nmeaLog?.write(nmea)
+      nmeaLog?.apply {
+        write(nmea)
+        flush()
+      }
     } catch (_: IOException) {
       stopLogging()
       logging = false
