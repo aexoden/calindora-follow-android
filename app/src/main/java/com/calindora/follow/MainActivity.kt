@@ -29,13 +29,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -499,8 +496,6 @@ fun ControlsSection(
     isBound: Boolean,
     isTracking: Boolean,
     isLogging: Boolean,
-    isTrackingPending: Boolean = false,
-    isLoggingPending: Boolean = false,
     isDebugEnabled: Boolean,
     onServiceToggle: (Boolean) -> Unit,
     onTrackToggle: (Boolean) -> Unit,
@@ -527,7 +522,6 @@ fun ControlsSection(
           enabledText = stringResource(R.string.label_logging_on),
           disabledText = stringResource(R.string.label_logging_off),
           enabled = isBound,
-          isPending = isLoggingPending,
           modifier = Modifier.weight(1f).padding(end = 8.dp),
       )
 
@@ -537,7 +531,6 @@ fun ControlsSection(
           enabledText = stringResource(R.string.label_tracking_on),
           disabledText = stringResource(R.string.label_tracking_off),
           enabled = isBound,
-          isPending = isTrackingPending,
           modifier = Modifier.weight(1f).padding(start = 8.dp),
       )
     }
@@ -582,12 +575,11 @@ fun ToggleButton(
     disabledText: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    isPending: Boolean = false,
 ) {
   Button(
       onClick = { onCheckedChange(!checked) },
       modifier = modifier,
-      enabled = enabled && !isPending,
+      enabled = enabled,
       colors =
           ButtonDefaults.buttonColors(
               containerColor =
@@ -598,15 +590,7 @@ fun ToggleButton(
                   else MaterialTheme.colorScheme.onSurfaceVariant,
           ),
   ) {
-    if (isPending) {
-      Row {
-        Text(if (checked) enabledText else disabledText)
-        Spacer(modifier = Modifier.width(8.dp))
-        CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-      }
-    } else {
-      Text(if (checked) enabledText else disabledText)
-    }
+    Text(if (checked) enabledText else disabledText)
   }
 }
 
