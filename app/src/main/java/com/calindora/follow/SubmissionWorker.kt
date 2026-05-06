@@ -9,8 +9,7 @@ import android.content.Intent
 import android.os.Environment
 import android.util.Log
 import androidx.core.app.NotificationCompat
-import androidx.core.content.edit
-import androidx.preference.PreferenceManager
+import androidx.datastore.preferences.core.edit
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
@@ -36,6 +35,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
@@ -66,9 +66,9 @@ class CredentialResetReceiver : BroadcastReceiver() {
 
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        PreferenceManager.getDefaultSharedPreferences(context).edit {
-          putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-          putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
+        context.settingsDataStore.edit {
+          it[Preferences.KEY_SUBMISSIONS_BLOCKED] = false
+          it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0
         }
 
         WorkManager.getInstance(context)
@@ -97,11 +97,10 @@ private sealed class ConfigResult {
 class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     CoroutineWorker(appContext, workerParams) {
   private val locationReportDao = AppDatabase.getInstance(applicationContext).locationReportDao()
-  private val preferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+  private val settingsDataStore = applicationContext.settingsDataStore
+  private val encryptedSecretStore = EncryptedSecretStore(applicationContext)
 
   companion object {
-    const val PREF_SUBMISSIONS_BLOCKED = "submissions_blocked_credential_issue"
-    const val PREF_CONSECUTIVE_AUTH_FAILURES = "consecutive_auth_failures"
     const val UNIQUE_WORK_NAME = "submission_work"
     const val CREDENTIAL_NOTIFICATION_ID = 38
 
@@ -167,14 +166,19 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
   override suspend fun doWork(): Result =
       withContext(Dispatchers.IO) {
-        if (preferences.getBoolean(PREF_SUBMISSIONS_BLOCKED, false)) {
+        // Idempotent; covers users who upgrade and have the worker fire before opening Settings.
+        encryptedSecretStore.migrateFromLegacyIfNeeded()
+
+        val initialPrefs = settingsDataStore.data.first()
+
+        if (initialPrefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true) {
           Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
           return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
         }
 
-        val authFailureCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0)
+        val authFailureCount = initialPrefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
         if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
-          preferences.edit(commit = true) { putBoolean(PREF_SUBMISSIONS_BLOCKED, true) }
+          settingsDataStore.edit { it[Preferences.KEY_SUBMISSIONS_BLOCKED] = true }
           notifyCredentialIssue(authFailureCount)
           return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
         }
@@ -204,8 +208,10 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       System.currentTimeMillis(),
                   )
 
-                  if (preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) != 0) {
-                    preferences.edit(commit = true) { putInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) }
+                  val currentFailures =
+                      settingsDataStore.data.first()[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
+                  if (currentFailures != 0) {
+                    settingsDataStore.edit { it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0 }
                   }
                 }
                 is SubmissionResult.PermanentError -> {
@@ -239,19 +245,23 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       continue
                     } else {
                       if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                        val newCount = preferences.getInt(PREF_CONSECUTIVE_AUTH_FAILURES, 0) + 1
-                        preferences.edit(commit = true) {
-                          putInt(PREF_CONSECUTIVE_AUTH_FAILURES, newCount)
-                        }
+                        val newCount =
+                            (settingsDataStore.data
+                                .first()[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0) + 1
 
                         if (newCount >= Config.Submission.MAX_AUTH_FAILURES) {
-                          preferences.edit(commit = true) {
-                            putBoolean(PREF_SUBMISSIONS_BLOCKED, true)
+                          settingsDataStore.edit {
+                            it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
+                            it[Preferences.KEY_SUBMISSIONS_BLOCKED] = true
                           }
                           notifyCredentialIssue(newCount)
                           return@withContext Result.failure(
                               workDataOf("error_reason" to "CREDENTIAL_ISSUE")
                           )
+                        } else {
+                          settingsDataStore.edit {
+                            it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
+                          }
                         }
                       }
                     }
@@ -362,15 +372,12 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     return digest.joinToString("") { "%02x".format(it) }
   }
 
-  private fun getSubmissionConfig(): ConfigResult {
+  private suspend fun getSubmissionConfig(): ConfigResult {
+    val prefs = settingsDataStore.data.first()
     val baseUrl =
-        preferences
-            .getString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL)
-            ?.trim()
-            ?.trimEnd('/')
-            .orEmpty()
-    val key = preferences.getString(Preferences.KEY_DEVICE_KEY, "")?.trim().orEmpty()
-    val secret = preferences.getString(Preferences.KEY_DEVICE_SECRET, "")?.trim().orEmpty()
+        (prefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL).trim().trimEnd('/')
+    val key = prefs[Preferences.KEY_DEVICE_KEY]?.trim().orEmpty()
+    val secret = encryptedSecretStore.get()?.trim().orEmpty()
 
     if (baseUrl.isEmpty()) return ConfigResult.Invalid("Service URL is not configured")
     if (key.isEmpty()) return ConfigResult.Invalid("Device key is not configured")

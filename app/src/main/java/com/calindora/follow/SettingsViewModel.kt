@@ -3,11 +3,9 @@ package com.calindora.follow
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
-import android.content.SharedPreferences
-import androidx.core.content.edit
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.preference.PreferenceManager
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import kotlinx.coroutines.FlowPreview
@@ -20,6 +18,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -37,62 +36,76 @@ data class SettingsUiState(
     val showExportDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
     val toastMessage: ToastMessage? = null,
+    val isLoading: Boolean = true,
 )
 
 /** ViewModel for the Settings screen */
 @OptIn(FlowPreview::class)
 class SettingsViewModel(application: Application) : AndroidViewModel(application) {
   private val locationReportDao = AppDatabase.getInstance(application).locationReportDao()
-  private val prefs = PreferenceManager.getDefaultSharedPreferences(application)
+  private val settingsDataStore = application.settingsDataStore
+  private val encryptedSecretStore = EncryptedSecretStore(application)
 
   private val settingsRepository = SettingsRepository(application, locationReportDao)
 
-  private val credentialPreferenceListener =
-      SharedPreferences.OnSharedPreferenceChangeListener { _, changedKey ->
-        if (
-            changedKey == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED ||
-                changedKey == SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES
-        ) {
-          refreshCredentialStatus()
-        }
-      }
-
-  private val _uiState =
-      MutableStateFlow(
-          SettingsUiState(
-              serviceUrl =
-                  prefs.getString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL)
-                      ?: Preferences.DEFAULT_SERVICE_URL,
-              deviceKey = prefs.getString(Preferences.KEY_DEVICE_KEY, "") ?: "",
-              deviceSecret = prefs.getString(Preferences.KEY_DEVICE_SECRET, "") ?: "",
-              isCredentialBlocked =
-                  prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false),
-              consecutiveAuthFailures =
-                  prefs.getInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0),
-          )
-      )
+  private val _uiState = MutableStateFlow(SettingsUiState())
   val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
   private val _savedEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
   val savedEvents: SharedFlow<Unit> = _savedEvents.asSharedFlow()
 
   init {
-    // Persist the default service URL on first run
-    if (!prefs.contains(Preferences.KEY_SERVICE_URL)) {
-      prefs.edit { putString(Preferences.KEY_SERVICE_URL, Preferences.DEFAULT_SERVICE_URL) }
-    }
-
-    refreshCredentialStatus()
-    prefs.registerOnSharedPreferenceChangeListener(credentialPreferenceListener)
-
-    // Failed report counts
     viewModelScope.launch {
-      locationReportDao.getPermanentlyFailedReportCount().collect { count ->
-        _uiState.update { it.copy(failedReportCount = count) }
-      }
-    }
+      // Migrate the legacy plaintext secret on first launch. Subsequent calls are no-ops.
+      encryptedSecretStore.migrateFromLegacyIfNeeded()
 
-    // Debounced save: service URL
+      // Load initial state synchronously before starting observers and save collectors.
+      val initialPrefs = settingsDataStore.data.first()
+      val initialSecret = encryptedSecretStore.get().orEmpty()
+
+      _uiState.update {
+        it.copy(
+            serviceUrl =
+                initialPrefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL,
+            deviceKey = initialPrefs[Preferences.KEY_DEVICE_KEY].orEmpty(),
+            deviceSecret = initialSecret,
+            isCredentialBlocked = initialPrefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true,
+            consecutiveAuthFailures = initialPrefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
+            isLoading = false,
+        )
+      }
+
+      // Persist the default service URL on first run.
+      if (!initialPrefs.contains(Preferences.KEY_SERVICE_URL)) {
+        settingsDataStore.edit { it[Preferences.KEY_SERVICE_URL] = Preferences.DEFAULT_SERVICE_URL }
+      }
+
+      startRuntimeStateObserver()
+      startSaveCollectors()
+      startFailedReportCountCollector()
+    }
+  }
+
+  private fun startRuntimeStateObserver() {
+    viewModelScope.launch {
+      settingsDataStore.data
+          .map { prefs ->
+            (prefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true) to
+                (prefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0)
+          }
+          .distinctUntilChanged()
+          .collect { (blocked, failures) ->
+            _uiState.update {
+              it.copy(
+                  isCredentialBlocked = blocked,
+                  consecutiveAuthFailures = failures,
+              )
+            }
+          }
+    }
+  }
+
+  private fun startSaveCollectors() {
     viewModelScope.launch {
       _uiState
           .map { it.serviceUrl }
@@ -100,12 +113,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { url ->
-            prefs.edit { putString(Preferences.KEY_SERVICE_URL, url) }
+            settingsDataStore.edit { it[Preferences.KEY_SERVICE_URL] = url }
             _savedEvents.tryEmit(Unit)
           }
     }
 
-    // Debounced save: device key
     viewModelScope.launch {
       _uiState
           .map { it.deviceKey }
@@ -113,12 +125,11 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { key ->
-            prefs.edit { putString(Preferences.KEY_DEVICE_KEY, key) }
+            settingsDataStore.edit { it[Preferences.KEY_DEVICE_KEY] = key }
             _savedEvents.tryEmit(Unit)
           }
     }
 
-    // Debounced save: device secret
     viewModelScope.launch {
       _uiState
           .map { it.deviceSecret }
@@ -126,77 +137,46 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { secret ->
-            prefs.edit { putString(Preferences.KEY_DEVICE_SECRET, secret) }
+            encryptedSecretStore.set(secret)
             _savedEvents.tryEmit(Unit)
           }
     }
   }
 
-  private fun refreshCredentialStatus() {
-    _uiState.update {
-      it.copy(
-          isCredentialBlocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false),
-          consecutiveAuthFailures =
-              prefs.getInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0),
-      )
+  private fun startFailedReportCountCollector() {
+    viewModelScope.launch {
+      locationReportDao.getPermanentlyFailedReportCount().collect { count ->
+        _uiState.update { it.copy(failedReportCount = count) }
+      }
     }
   }
 
-  override fun onCleared() {
-    prefs.unregisterOnSharedPreferenceChangeListener(credentialPreferenceListener)
-    super.onCleared()
-  }
-
   // Settings update functions - these only update in-memory state
-  // The debounced collectors in init will handle saving to SharedPreferences
-  fun updateServiceUrl(url: String) {
-    _uiState.update { it.copy(serviceUrl = url) }
-  }
+  // The debounced collectors in init will handle saving to DataStore
+  fun updateServiceUrl(url: String) = _uiState.update { it.copy(serviceUrl = url) }
 
-  fun updateDeviceKey(key: String) {
-    _uiState.update { it.copy(deviceKey = key) }
-  }
+  fun updateDeviceKey(key: String) = _uiState.update { it.copy(deviceKey = key) }
 
-  fun updateDeviceSecret(secret: String) {
-    _uiState.update { it.copy(deviceSecret = secret) }
-  }
+  fun updateDeviceSecret(secret: String) = _uiState.update { it.copy(deviceSecret = secret) }
 
   // Dialog management
-  fun showResetDialog() {
-    _uiState.update { it.copy(showResetDialog = true) }
-  }
+  fun showResetDialog() = _uiState.update { it.copy(showResetDialog = true) }
 
-  fun dismissResetDialog() {
-    _uiState.update { it.copy(showResetDialog = false) }
-  }
+  fun dismissResetDialog() = _uiState.update { it.copy(showResetDialog = false) }
 
-  fun showRetryDialog() {
-    _uiState.update { it.copy(showRetryDialog = true) }
-  }
+  fun showRetryDialog() = _uiState.update { it.copy(showRetryDialog = true) }
 
-  fun dismissRetryDialog() {
-    _uiState.update { it.copy(showRetryDialog = false) }
-  }
+  fun dismissRetryDialog() = _uiState.update { it.copy(showRetryDialog = false) }
 
-  fun showExportDialog() {
-    _uiState.update { it.copy(showExportDialog = true) }
-  }
+  fun showExportDialog() = _uiState.update { it.copy(showExportDialog = true) }
 
-  fun dismissExportDialog() {
-    _uiState.update { it.copy(showExportDialog = false) }
-  }
+  fun dismissExportDialog() = _uiState.update { it.copy(showExportDialog = false) }
 
-  fun showDeleteDialog() {
-    _uiState.update { it.copy(showDeleteDialog = true) }
-  }
+  fun showDeleteDialog() = _uiState.update { it.copy(showDeleteDialog = true) }
 
-  fun dismissDeleteDialog() {
-    _uiState.update { it.copy(showDeleteDialog = false) }
-  }
+  fun dismissDeleteDialog() = _uiState.update { it.copy(showDeleteDialog = false) }
 
-  fun clearToastMessage() {
-    _uiState.update { it.copy(toastMessage = null) }
-  }
+  fun clearToastMessage() = _uiState.update { it.copy(toastMessage = null) }
 
   // Action functions
   fun resetCredentialBlock() {
@@ -225,11 +205,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         it.copy(
             showRetryDialog = false,
             toastMessage =
-                if (success) {
-                  ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, count)
-                } else {
-                  ToastMessage.Simple(R.string.toast_retry_failure)
-                },
+                if (success) ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, count)
+                else ToastMessage.Simple(R.string.toast_retry_failure),
         )
       }
     }
@@ -273,13 +250,13 @@ class SettingsRepository(
     private val context: Context,
     private val locationReportDao: LocationReportDao,
 ) {
-  private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
+  private val settingsDataStore = context.settingsDataStore
 
-  fun resetCredentialBlock(): Boolean =
+  suspend fun resetCredentialBlock(): Boolean =
       runCatching {
-            prefs.edit {
-              putBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-              putInt(SubmissionWorker.PREF_CONSECUTIVE_AUTH_FAILURES, 0)
+            settingsDataStore.edit {
+              it[Preferences.KEY_SUBMISSIONS_BLOCKED] = false
+              it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0
             }
 
             WorkManager.getInstance(context)

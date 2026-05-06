@@ -55,7 +55,7 @@ object Config {
 
   /** Settings screen UI timing. */
   object Ui {
-    /** Debounce window for persisting text-field edits to SharedPreferences. */
+    /** Debounce window for persisting text-field edits to DataStore. */
     const val SAVE_DEBOUNCE_MS = 500L
 
     /** How long the "Saved" indicator remains visible after a debounced save fires. */

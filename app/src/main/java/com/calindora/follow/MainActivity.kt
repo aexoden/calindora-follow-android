@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.location.Location
 import android.net.Uri
@@ -55,17 +54,14 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.preference.PreferenceManager
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.awaitClose
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 private const val FEET_PER_METER = 3.2808399
@@ -133,8 +129,9 @@ class MainActivity : ComponentActivity() {
     checkNotificationPermission()
 
     val credentialWarningFlow =
-        PreferenceManager.getDefaultSharedPreferences(this)
-            .booleanFlow(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
+        settingsDataStore.data
+            .map { it[Preferences.KEY_SUBMISSIONS_BLOCKED] == true }
+            .distinctUntilChanged()
 
     setContent {
       CalindoraFollowTheme {
@@ -288,21 +285,6 @@ class MainActivity : ComponentActivity() {
     startActivity(intent)
   }
 }
-
-private fun SharedPreferences.booleanFlow(key: String, defaultValue: Boolean): Flow<Boolean> =
-    callbackFlow {
-          val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, changedKey ->
-            if (changedKey == key || changedKey == null) {
-              trySend(prefs.getBoolean(key, defaultValue))
-            }
-          }
-
-          registerOnSharedPreferenceChangeListener(listener)
-          trySend(getBoolean(key, defaultValue))
-
-          awaitClose { unregisterOnSharedPreferenceChangeListener(listener) }
-        }
-        .distinctUntilChanged()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
