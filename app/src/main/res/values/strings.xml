@@ -22,6 +22,8 @@
   <string name="dialog_reset_title">Reset Authentication Block</string>
   <string name="dialog_retry_title">Retry Failed Reports</string>
   <string name="error_url_https">URL must use HTTPS</string>
+  <string name="error_url_malformed">URL is not valid</string>
+  <string name="error_url_no_host">URL must have a host</string>
   <string name="error_url_required">URL required</string>
   <string name="indicator_saved">Saved</string>
   <string name="label_accuracy">Accuracy:</string>

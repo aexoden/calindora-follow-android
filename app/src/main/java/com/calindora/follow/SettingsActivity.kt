@@ -108,9 +108,13 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     }
   }
 
-  // Field validation strings are resolved so they can be used in lambdas
-  val urlRequiredError = stringResource(R.string.error_url_required)
-  val urlHttpsError = stringResource(R.string.error_url_https)
+  // Resolve URL validation error strings up front so they can be used in the validate lambda
+  // (which runs during composition but isn't itself @Composable). Keep these in lockstep with the
+  // UrlValidationError sealed class.
+  val urlEmptyError = stringResource(UrlValidationError.Empty.errorRes)
+  val urlMalformedError = stringResource(UrlValidationError.Malformed.errorRes)
+  val urlNotHttpsError = stringResource(UrlValidationError.NotHttps.errorRes)
+  val urlNoHostError = stringResource(UrlValidationError.NoHost.errorRes)
 
   Scaffold(
       topBar = {
@@ -160,10 +164,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                   ),
               keyboardActions = KeyboardActions(onNext = { keyFocus.requestFocus() }),
               validate = { value ->
-                when {
-                  value.isBlank() -> urlRequiredError
-                  !value.startsWith("https://") -> urlHttpsError
-                  else -> null
+                when (validateServiceUrl(value)) {
+                  UrlValidationError.Empty -> urlEmptyError
+                  UrlValidationError.Malformed -> urlMalformedError
+                  UrlValidationError.NotHttps -> urlNotHttpsError
+                  UrlValidationError.NoHost -> urlNoHostError
+                  null -> null
                 }
               },
           )

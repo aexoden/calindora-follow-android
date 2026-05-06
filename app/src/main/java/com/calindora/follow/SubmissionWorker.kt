@@ -26,7 +26,6 @@ import java.io.File
 import java.io.FileWriter
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -374,30 +373,17 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
   private suspend fun getSubmissionConfig(): ConfigResult {
     val prefs = settingsDataStore.data.first()
-    val baseUrl =
-        (prefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL).trim().trimEnd('/')
+    val rawUrl = prefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL
     val key = prefs[Preferences.KEY_DEVICE_KEY]?.trim().orEmpty()
     val secret = encryptedSecretStore.get()?.trim().orEmpty()
 
-    if (baseUrl.isEmpty()) return ConfigResult.Invalid("Service URL is not configured")
+    validateServiceUrl(rawUrl)?.let {
+      return ConfigResult.Invalid(it.description)
+    }
     if (key.isEmpty()) return ConfigResult.Invalid("Device key is not configured")
     if (secret.isEmpty()) return ConfigResult.Invalid("Device secret is not configured")
 
-    val parsedUrl =
-        try {
-          URL(baseUrl)
-        } catch (_: java.net.MalformedURLException) {
-          return ConfigResult.Invalid("Service URL is not a valid URL")
-        }
-
-    if (parsedUrl.protocol != "https") {
-      return ConfigResult.Invalid("Service URL must use HTTPS")
-    }
-
-    if (parsedUrl.host.isNullOrEmpty()) {
-      return ConfigResult.Invalid("Service URL must have a valid host")
-    }
-
+    val baseUrl = rawUrl.trim().trimEnd('/')
     return ConfigResult.Valid(
         SubmissionConfig(deviceKey = key, secret = secret, api = FollowApiFactory.create(baseUrl))
     )
