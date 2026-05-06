@@ -61,7 +61,11 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 
 private const val FEET_PER_METER = 3.2808399
@@ -77,13 +81,8 @@ class MainActivity : ComponentActivity() {
   /** Latest snapshot from the bound service, or null if we aren't bound. */
   private val serviceStateFlow = MutableStateFlow<FollowService.ServiceState?>(null)
 
-  /** Activity-local UI state that has nothing to do with the service. */
-  private var uiState by mutableStateOf(UiState())
-
-  data class UiState(
-      val credentialWarningVisible: Boolean = false,
-      val showLocationSettingsDialog: Boolean = false,
-  )
+  /** Shown when the user permanently denied location permission. Lost on recreation. */
+  private var showLocationSettingsDialog by mutableStateOf(false)
 
   private val connection =
       object : ServiceConnection {
@@ -104,13 +103,6 @@ class MainActivity : ComponentActivity() {
         }
       }
 
-  private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
-    if (key == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED) {
-      val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-      uiState = uiState.copy(credentialWarningVisible = blocked)
-    }
-  }
-
   private val requestNotificationPermissionLauncher =
       registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (!isGranted) {
@@ -126,7 +118,7 @@ class MainActivity : ComponentActivity() {
           Toast.makeText(this, R.string.toast_location_permission_required, Toast.LENGTH_LONG)
               .show()
         } else {
-          uiState = uiState.copy(showLocationSettingsDialog = true)
+          showLocationSettingsDialog = true
         }
       }
 
@@ -140,13 +132,15 @@ class MainActivity : ComponentActivity() {
 
     checkNotificationPermission()
 
-    val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-    val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-    uiState = uiState.copy(credentialWarningVisible = blocked)
+    val credentialWarningFlow =
+        PreferenceManager.getDefaultSharedPreferences(this)
+            .booleanFlow(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
 
     setContent {
       CalindoraFollowTheme {
         val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
+        val credentialWarningVisible by
+            credentialWarningFlow.collectAsStateWithLifecycle(initialValue = false)
         val isBound = serviceState != null
 
         MainScreen(
@@ -169,13 +163,11 @@ class MainActivity : ComponentActivity() {
             isTracking = serviceState?.tracking == true,
             isLogging = serviceState?.logging == true,
             locationData = serviceState?.location,
-            credentialWarningVisible = uiState.credentialWarningVisible,
-            showLocationSettingsDialog = uiState.showLocationSettingsDialog,
-            onDismissLocationSettingsDialog = {
-              uiState = uiState.copy(showLocationSettingsDialog = false)
-            },
+            credentialWarningVisible = credentialWarningVisible,
+            showLocationSettingsDialog = showLocationSettingsDialog,
+            onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
             onOpenAppSettings = {
-              uiState = uiState.copy(showLocationSettingsDialog = false)
+              showLocationSettingsDialog = false
               openAppSettings()
             },
         )
@@ -185,23 +177,14 @@ class MainActivity : ComponentActivity() {
 
   override fun onResume() {
     super.onResume()
-    updateCredentialWarning()
-    PreferenceManager.getDefaultSharedPreferences(this)
-        .registerOnSharedPreferenceChangeListener(prefListener)
 
     if (
-        uiState.showLocationSettingsDialog &&
+        showLocationSettingsDialog &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
     ) {
-      uiState = uiState.copy(showLocationSettingsDialog = false)
+      showLocationSettingsDialog = false
     }
-  }
-
-  override fun onPause() {
-    super.onPause()
-    PreferenceManager.getDefaultSharedPreferences(this)
-        .unregisterOnSharedPreferenceChangeListener(prefListener)
   }
 
   override fun onStart() {
@@ -304,13 +287,22 @@ class MainActivity : ComponentActivity() {
         }
     startActivity(intent)
   }
-
-  private fun updateCredentialWarning() {
-    val prefs = PreferenceManager.getDefaultSharedPreferences(this)
-    val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-    uiState = uiState.copy(credentialWarningVisible = blocked)
-  }
 }
+
+private fun SharedPreferences.booleanFlow(key: String, defaultValue: Boolean): Flow<Boolean> =
+    callbackFlow {
+          val listener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, changedKey ->
+            if (changedKey == key || changedKey == null) {
+              trySend(prefs.getBoolean(key, defaultValue))
+            }
+          }
+
+          registerOnSharedPreferenceChangeListener(listener)
+          trySend(getBoolean(key, defaultValue))
+
+          awaitClose { unregisterOnSharedPreferenceChangeListener(listener) }
+        }
+        .distinctUntilChanged()
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
