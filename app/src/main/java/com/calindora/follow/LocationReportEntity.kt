@@ -2,12 +2,20 @@ package com.calindora.follow
 
 import androidx.room.Dao
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.Insert
 import androidx.room.PrimaryKey
 import androidx.room.Query
 import kotlinx.coroutines.flow.Flow
 
-@Entity(tableName = "location_reports")
+@Entity(
+    tableName = "location_reports",
+    indices =
+        [
+            Index(value = ["submittedAt", "permanentlyFailed", "timestamp"]),
+            Index(value = ["permanentlyFailed", "timestamp"]),
+        ],
+)
 data class LocationReportEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val timestamp: Long,

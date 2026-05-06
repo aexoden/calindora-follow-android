@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [LocationReportEntity::class], version = 3, exportSchema = true)
+@Database(entities = [LocationReportEntity::class], version = 4, exportSchema = true)
 abstract class AppDatabase : RoomDatabase() {
   abstract fun locationReportDao(): LocationReportDao
 
@@ -29,6 +29,22 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
+    private val MIGRATION_3_4 =
+        object : Migration(3, 4) {
+          override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS " +
+                    "`index_location_reports_submittedAt_permanentlyFailed_timestamp` " +
+                    "ON `location_reports` (`submittedAt`, `permanentlyFailed`, `timestamp`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS " +
+                    "`index_location_reports_permanentlyFailed_timestamp` " +
+                    "ON `location_reports` (`permanentlyFailed`, `timestamp`)"
+            )
+          }
+        }
+
     fun getInstance(context: Context): AppDatabase {
       return INSTANCE
           ?: synchronized(this) {
@@ -44,6 +60,7 @@ abstract class AppDatabase : RoomDatabase() {
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1)
                     .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                     .addMigrations(MIGRATION_2_3)
+                    .addMigrations(MIGRATION_3_4)
                     .build()
             INSTANCE = instance
             instance
