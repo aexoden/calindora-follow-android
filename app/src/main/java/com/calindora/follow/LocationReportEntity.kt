@@ -81,6 +81,6 @@ interface LocationReportDao {
 
   @Query("SELECT MAX(submittedAt) FROM location_reports") fun getLastSubmissionTime(): Flow<Long>
 
-  @Query("DELETE FROM location_reports WHERE submittedAt > 0 AND createdAt < :timestamp")
+  @Query("DELETE FROM location_reports WHERE submittedAt > 0 AND submittedAt < :timestamp")
   suspend fun deleteOldSubmittedReports(timestamp: Long)
 }
