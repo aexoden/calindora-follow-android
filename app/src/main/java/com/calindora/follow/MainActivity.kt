@@ -43,7 +43,9 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -54,11 +56,13 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.work.WorkInfo
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -138,6 +142,8 @@ class MainActivity : ComponentActivity() {
         val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
         val credentialWarningVisible by
             credentialWarningFlow.collectAsStateWithLifecycle(initialValue = false)
+        val syncWorkInfo by
+            locationViewModel.syncWorkInfo.collectAsStateWithLifecycle(initialValue = null)
         val isBound = serviceState != null
 
         MainScreen(
@@ -147,6 +153,7 @@ class MainActivity : ComponentActivity() {
                 locationViewModel.lastSubmissionTime
                     .collectAsStateWithLifecycle(initialValue = 0L)
                     .value,
+            syncWorkInfo = syncWorkInfo,
             onServiceToggle = { isChecked -> onButtonService(isChecked) },
             onTrackToggle = { isChecked -> onButtonTrack(isChecked) },
             onLogToggle = { isChecked -> onButtonLog(isChecked) },
@@ -291,6 +298,7 @@ class MainActivity : ComponentActivity() {
 fun MainScreen(
     queueSize: Int,
     lastSubmissionTime: Long,
+    syncWorkInfo: WorkInfo?,
     onServiceToggle: (Boolean) -> Unit,
     onTrackToggle: (Boolean) -> Unit,
     onLogToggle: (Boolean) -> Unit,
@@ -328,7 +336,12 @@ fun MainScreen(
           locationData = locationData,
           lastSubmissionTime = lastSubmissionTime,
           queueSize = queueSize,
+          syncWorkInfo = if (isDebugEnabled) null else syncWorkInfo,
       )
+
+      if (isDebugEnabled) {
+        SyncStatusCard(workInfo = syncWorkInfo)
+      }
 
       Spacer(modifier = Modifier.height(8.dp))
 
@@ -371,7 +384,12 @@ fun MainScreen(
 }
 
 @Composable
-fun LocationStatusSection(locationData: Location?, lastSubmissionTime: Long, queueSize: Int) {
+fun LocationStatusSection(
+    locationData: Location?,
+    lastSubmissionTime: Long,
+    queueSize: Int,
+    syncWorkInfo: WorkInfo?,
+) {
   Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
     Column(modifier = Modifier.padding(16.dp)) {
       if (locationData != null) {
@@ -424,6 +442,7 @@ fun LocationStatusSection(locationData: Location?, lastSubmissionTime: Long, que
           label = stringResource(R.string.label_submission_queue_size),
           value = queueSize.toString(),
       )
+      NextSyncStatusRow(workInfo = syncWorkInfo)
     }
   }
 }
@@ -566,6 +585,110 @@ fun ToggleButton(
   ) {
     Text(if (checked) enabledText else disabledText)
   }
+}
+
+@Composable
+private fun NextSyncStatusRow(workInfo: WorkInfo?) {
+  if (workInfo == null || workInfo.state != WorkInfo.State.ENQUEUED) return
+
+  val target = workInfo.nextScheduleTimeMillis
+  if (target == Long.MAX_VALUE) return
+  val remaining = rememberCountdown(target)
+
+  if (remaining > 1500L) {
+    StatusRow(
+        label = stringResource(R.string.label_next_sync),
+        value = formatCountdown(remaining),
+    )
+  }
+}
+
+@Composable
+private fun SyncStatusCard(workInfo: WorkInfo?) {
+  Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+    Column(modifier = Modifier.padding(16.dp)) {
+      Text(
+          text = stringResource(R.string.sync_status_card_title),
+          style = MaterialTheme.typography.titleMedium,
+          color = MaterialTheme.colorScheme.primary,
+      )
+      HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+      if (workInfo == null) {
+        Text(
+            text = stringResource(R.string.sync_status_no_work),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        return@Card
+      }
+
+      StatusRow(label = stringResource(R.string.label_sync_state), value = workInfo.state.toLabel())
+      StatusRow(
+          label = stringResource(R.string.label_sync_attempts),
+          value = workInfo.runAttemptCount.toString(),
+      )
+
+      if (workInfo.state == WorkInfo.State.ENQUEUED) {
+        val target = workInfo.nextScheduleTimeMillis
+        if (target != Long.MAX_VALUE) {
+          val remaining = rememberCountdown(target)
+          StatusRow(
+              label = stringResource(R.string.label_next_sync),
+              value = if (remaining > 0) formatCountdown(remaining) else "-",
+          )
+        }
+      }
+
+      if (workInfo.state == WorkInfo.State.FAILED) {
+        val errorReason = workInfo.outputData.getString("error_reason")
+        if (!errorReason.isNullOrEmpty()) {
+          StatusRow(label = stringResource(R.string.label_sync_last_error), value = errorReason)
+        }
+      }
+
+      val stopReason = workInfo.stopReason
+      if (stopReason != WorkInfo.STOP_REASON_NOT_STOPPED) {
+        StatusRow(
+            label = stringResource(R.string.label_sync_stop_reason),
+            value = stopReason.toString(),
+        )
+      }
+    }
+  }
+}
+
+@Composable
+private fun WorkInfo.State.toLabel(): String =
+    stringResource(
+        when (this) {
+          WorkInfo.State.ENQUEUED -> R.string.sync_state_enqueued
+          WorkInfo.State.RUNNING -> R.string.sync_state_running
+          WorkInfo.State.SUCCEEDED -> R.string.sync_state_succeeded
+          WorkInfo.State.FAILED -> R.string.sync_state_failed
+          WorkInfo.State.BLOCKED -> R.string.sync_state_blocked
+          WorkInfo.State.CANCELLED -> R.string.sync_state_cancelled
+        }
+    )
+
+@Composable
+private fun rememberCountdown(targetTime: Long): Long {
+  var now by remember(targetTime) { mutableLongStateOf(System.currentTimeMillis()) }
+  LaunchedEffect(targetTime) {
+    while (System.currentTimeMillis() < targetTime) {
+      now = System.currentTimeMillis()
+      delay(500L)
+    }
+    now = System.currentTimeMillis()
+  }
+
+  return (targetTime - now).coerceAtLeast(0L)
+}
+
+private fun formatCountdown(remainingMs: Long): String {
+  val totalSeconds = (remainingMs + 999L) / 1000L
+  val minutes = totalSeconds / 60L
+  val seconds = totalSeconds % 60L
+  return String.format(Locale.US, "%d:%02d", minutes, seconds)
 }
 
 @Composable
