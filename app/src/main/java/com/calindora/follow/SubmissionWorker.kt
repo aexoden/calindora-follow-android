@@ -142,6 +142,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           BufferedWriter(FileWriter(file)).use { writer ->
             for (report in reports) {
               writer.write("Report ID: ${report.id}\n")
+              writer.write("Created At: ${Instant.ofEpochMilli(report.createdAt)}\n")
               writer.write("Timestamp: ${report.timestamp}\n")
               writer.write("Latitude: ${report.latitude}\n")
               writer.write("Longitude: ${report.longitude}\n")
