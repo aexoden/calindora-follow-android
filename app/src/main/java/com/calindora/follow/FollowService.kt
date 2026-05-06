@@ -35,6 +35,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
+private const val DEFAULT_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.default"
+
 private val LOG_FILE_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
 private val BODY_TIMESTAMP_FORMATTER =
@@ -156,7 +158,7 @@ class FollowService : Service() {
     val pendingIntent = PendingIntent.getActivity(this, 0, intent, FLAG_IMMUTABLE)
 
     val notification =
-        NotificationCompat.Builder(this, "com.calindora.follow.default")
+        NotificationCompat.Builder(this, DEFAULT_NOTIFICATION_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(getText(R.string.notification_title))
             .setContentText(getText(R.string.notification_text))
@@ -169,7 +171,7 @@ class FollowService : Service() {
   private fun createNotificationChannel() {
     val name = getString(R.string.notification_channel_name)
     val importance = NotificationManager.IMPORTANCE_LOW
-    val channel = NotificationChannel("com.calindora.follow.default", name, importance)
+    val channel = NotificationChannel(DEFAULT_NOTIFICATION_CHANNEL_ID, name, importance)
 
     channel.description = getString(R.string.notification_channel_description)
 
