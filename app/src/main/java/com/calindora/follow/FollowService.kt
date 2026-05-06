@@ -329,6 +329,13 @@ class FollowService : Service() {
     private fun formatNumber(number: Double): String {
       val output = String.format(Locale.US, "%.12f", number)
 
+      // Normalize signed-zero to positive zero to ensure consistent signature
+      // input. The comparison is intentionally done on the formatted string to
+      // ensure that anything that would be formatted as "-0.000000000000" is
+      // normalized, such as tiny negative numbers. The server formats the
+      // numbers independently and calculates the HMAC over its own output, so
+      // a sign mismatch breaks signature validation. Revisit when the v2 API
+      // is implemented.
       if (output == "-0.000000000000") {
         return "0.000000000000"
       }
