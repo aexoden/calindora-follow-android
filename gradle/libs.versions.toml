@@ -5,8 +5,7 @@ ksp = "2.3.7"
 
 androidxActivity = "1.13.0"
 androidxAppcompat = "1.7.1"
-androidxComposeMaterial3 = "1.4.0"
-androidxComposeUi = "1.10.6"
+androidxComposeBom = "2026.03.00"
 androidxConstraintlayout = "2.2.1"
 androidxCoreKtx = "1.18.0"
 androidxEspresso = "3.7.0"
@@ -27,8 +26,9 @@ retrofit = "3.0.0"
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "androidxActivity" }
 androidx-activity-ktx = { module = "androidx.activity:activity-ktx", version.ref = "androidxActivity" }
 androidx-appcompat = { module = "androidx.appcompat:appcompat", version.ref = "androidxAppcompat" }
-androidx-compose-material3 = { module = "androidx.compose.material3:material3-android", version.ref = "androidxComposeMaterial3" }
-androidx-compose-ui = { module = "androidx.compose.ui:ui", version.ref = "androidxComposeUi" }
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidxComposeBom" }
+androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-compose-ui = { module = "androidx.compose.ui:ui" }
 androidx-constraintlayout = { module = "androidx.constraintlayout:constraintlayout", version.ref = "androidxConstraintlayout" }
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "androidxCoreKtx" }
 androidx-fragment-ktx = { module = "androidx.fragment:fragment-ktx", version.ref = "androidxFragment" }
