@@ -33,6 +33,10 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 private const val DEFAULT_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.default"
@@ -47,19 +51,14 @@ private val SIGNATURE_TIMESTAMP_FORMATTER =
 class FollowService : Service() {
   private val binder = FollowBinder()
 
-  private var locationUpdateCallback: ((Location) -> Unit)? = null
+  data class ServiceState(
+      val tracking: Boolean = false,
+      val logging: Boolean = false,
+      val location: Location? = null,
+  )
 
-  var location: Location =
-      Location("").apply {
-        latitude = 0.0
-        longitude = 0.0
-        altitude = 0.0
-        speed = 0f
-        bearing = 0f
-        accuracy = 0f
-        time = System.currentTimeMillis()
-      }
-    private set
+  private val _state = MutableStateFlow(ServiceState())
+  val state: StateFlow<ServiceState> = _state.asStateFlow()
 
   private var lastReportElapsed = 0L
 
@@ -68,9 +67,12 @@ class FollowService : Service() {
 
   private var nmeaLog: BufferedWriter? = null
 
-  private var _logging = false
-
-  var tracking = false
+  /** Whether tracked location reports are currently being queued for submission. */
+  var tracking: Boolean
+    get() = _state.value.tracking
+    set(value) {
+      _state.update { it.copy(tracking = value) }
+    }
 
   /**
    * Whether NMEA logging to local storage is currently active.
@@ -78,7 +80,7 @@ class FollowService : Service() {
    * Read-only as changing the state can fail. Use [setLogging] to request a state change.
    */
   val logging: Boolean
-    get() = _logging
+    get() = _state.value.logging
 
   /**
    * Enable or disable NMEA logging.
@@ -88,7 +90,7 @@ class FollowService : Service() {
    *   not be created).
    */
   fun setLogging(enabled: Boolean): Boolean {
-    if (_logging == enabled) return true
+    if (_state.value.logging == enabled) return true
 
     if (enabled) {
       if (!startLogging()) return false
@@ -96,26 +98,13 @@ class FollowService : Service() {
       stopLogging()
     }
 
-    _logging = enabled
+    _state.update { it.copy(logging = enabled) }
     return true
   }
 
   private val locationListener = LocationListener { location -> updateLocation(location) }
 
   private val nmeaListener = OnNmeaMessageListener { nmea, _ -> logNmea(nmea) }
-
-  /*
-   * Callback Methods
-   */
-
-  fun setLocationUpdateCallback(callback: (Location) -> Unit) {
-    locationUpdateCallback = callback
-    callback(location)
-  }
-
-  fun unregisterLocationCallback() {
-    locationUpdateCallback = null
-  }
 
   /*
    * Service Methods
@@ -142,7 +131,6 @@ class FollowService : Service() {
     serviceScope.cancel()
     stopLocationUpdates()
     stopLogging()
-    locationUpdateCallback = null
   }
 
   /*
@@ -258,9 +246,7 @@ class FollowService : Service() {
   }
 
   private fun updateLocation(location: Location) {
-    this.location = location
-
-    locationUpdateCallback?.invoke(location)
+    _state.update { it.copy(location = location) }
 
     val nowElapsed = SystemClock.elapsedRealtime()
     if (tracking && nowElapsed - lastReportElapsed >= Config.Tracking.UPDATE_INTERVAL_MS) {

@@ -57,11 +57,15 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 
 private const val FEET_PER_METER = 3.2808399
 
@@ -70,15 +74,16 @@ private val DISPLAY_FORMATTER =
 
 class MainActivity : ComponentActivity() {
   private val locationViewModel: LocationViewModel by viewModels()
-  private lateinit var binder: FollowService.FollowBinder
+  private var binder: FollowService.FollowBinder? = null
+  private var stateCollectionJob: Job? = null
 
-  private var serviceState by mutableStateOf(ServiceState())
+  /** Latest snapshot from the bound service, or null if we aren't bound. */
+  private val serviceStateFlow = MutableStateFlow<FollowService.ServiceState?>(null)
 
-  data class ServiceState(
-      val isBound: Boolean = false,
-      val isTracking: Boolean = false,
-      val isLogging: Boolean = false,
-      val location: Location? = null,
+  /** Activity-local UI state that has nothing to do with the service. */
+  private var uiState by mutableStateOf(UiState())
+
+  data class UiState(
       val credentialWarningVisible: Boolean = false,
       val showLocationSettingsDialog: Boolean = false,
   )
@@ -86,36 +91,26 @@ class MainActivity : ComponentActivity() {
   private val connection =
       object : ServiceConnection {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
-          binder = service as FollowService.FollowBinder
+          val followBinder = service as FollowService.FollowBinder
+          binder = followBinder
 
-          binder.getService().setLocationUpdateCallback { location ->
-            serviceState =
-                serviceState.copy(
-                    isBound = true,
-                    isTracking = binder.getService().tracking,
-                    isLogging = binder.getService().logging,
-                    location = location,
-                )
+          stateCollectionJob = lifecycleScope.launch {
+            followBinder.getService().state.collect { serviceStateFlow.value = it }
           }
-
-          serviceState =
-              serviceState.copy(
-                  isBound = true,
-                  isTracking = binder.getService().tracking,
-                  isLogging = binder.getService().logging,
-                  location = binder.getService().location,
-              )
         }
 
         override fun onServiceDisconnected(name: ComponentName) {
-          serviceState = serviceState.copy(isBound = false, isTracking = false, isLogging = false)
+          binder = null
+          stateCollectionJob?.cancel()
+          stateCollectionJob = null
+          serviceStateFlow.value = null
         }
       }
 
   private val prefListener = SharedPreferences.OnSharedPreferenceChangeListener { prefs, key ->
     if (key == SubmissionWorker.PREF_SUBMISSIONS_BLOCKED) {
       val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-      serviceState = serviceState.copy(credentialWarningVisible = blocked)
+      uiState = uiState.copy(credentialWarningVisible = blocked)
     }
   }
 
@@ -134,7 +129,7 @@ class MainActivity : ComponentActivity() {
           Toast.makeText(this, R.string.toast_location_permission_required, Toast.LENGTH_LONG)
               .show()
         } else {
-          serviceState = serviceState.copy(showLocationSettingsDialog = true)
+          uiState = uiState.copy(showLocationSettingsDialog = true)
         }
       }
 
@@ -150,10 +145,13 @@ class MainActivity : ComponentActivity() {
 
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
     val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-    serviceState = serviceState.copy(credentialWarningVisible = blocked)
+    uiState = uiState.copy(credentialWarningVisible = blocked)
 
     setContent {
       CalindoraFollowTheme {
+        val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
+        val isBound = serviceState != null
+
         MainScreen(
             queueSize =
                 locationViewModel.queueSize.collectAsStateWithLifecycle(initialValue = 0).value,
@@ -170,17 +168,17 @@ class MainActivity : ComponentActivity() {
               val intent = Intent(this, SettingsActivity::class.java)
               startActivity(intent)
             },
-            isBound = serviceState.isBound,
-            isTracking = serviceState.isTracking,
-            isLogging = serviceState.isLogging,
-            locationData = serviceState.location,
-            credentialWarningVisible = serviceState.credentialWarningVisible,
-            showLocationSettingsDialog = serviceState.showLocationSettingsDialog,
+            isBound = isBound,
+            isTracking = serviceState?.tracking == true,
+            isLogging = serviceState?.logging == true,
+            locationData = serviceState?.location,
+            credentialWarningVisible = uiState.credentialWarningVisible,
+            showLocationSettingsDialog = uiState.showLocationSettingsDialog,
             onDismissLocationSettingsDialog = {
-              serviceState = serviceState.copy(showLocationSettingsDialog = false)
+              uiState = uiState.copy(showLocationSettingsDialog = false)
             },
             onOpenAppSettings = {
-              serviceState = serviceState.copy(showLocationSettingsDialog = false)
+              uiState = uiState.copy(showLocationSettingsDialog = false)
               openAppSettings()
             },
         )
@@ -195,11 +193,11 @@ class MainActivity : ComponentActivity() {
         .registerOnSharedPreferenceChangeListener(prefListener)
 
     if (
-        serviceState.showLocationSettingsDialog &&
+        uiState.showLocationSettingsDialog &&
             ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
                 PackageManager.PERMISSION_GRANTED
     ) {
-      serviceState = serviceState.copy(showLocationSettingsDialog = false)
+      uiState = uiState.copy(showLocationSettingsDialog = false)
     }
   }
 
@@ -234,21 +232,17 @@ class MainActivity : ComponentActivity() {
         requestLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
       }
     } else {
-      if (serviceState.isBound) {
-        binder.getService().setLogging(false)
-        binder.getService().tracking = false
+      binder?.getService()?.let { service ->
+        service.setLogging(false)
+        service.tracking = false
       }
-
       stopService()
     }
   }
 
   private fun onButtonLog(isChecked: Boolean) {
-    if (!serviceState.isBound) return
-
-    val service = binder.getService()
+    val service = binder?.getService() ?: return
     val success = service.setLogging(isChecked)
-    serviceState = serviceState.copy(isLogging = service.logging)
 
     if (!success) {
       Toast.makeText(this, R.string.toast_logging_start_failed, Toast.LENGTH_LONG).show()
@@ -256,10 +250,7 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun onButtonTrack(isChecked: Boolean) {
-    if (!serviceState.isBound) return
-
-    binder.getService().tracking = isChecked
-    serviceState = serviceState.copy(isTracking = binder.getService().tracking)
+    binder?.getService()?.let { it.tracking = isChecked }
   }
 
   private fun checkNotificationPermission() {
@@ -280,16 +271,18 @@ class MainActivity : ComponentActivity() {
    */
 
   private fun bindService() {
-    if (!serviceState.isBound) {
+    if (serviceStateFlow.value == null) {
       Intent(this, FollowService::class.java).also { intent -> bindService(intent, connection, 0) }
     }
   }
 
   private fun unbindService() {
-    if (serviceState.isBound) {
-      binder.getService().unregisterLocationCallback()
+    if (serviceStateFlow.value != null) {
       unbindService(connection)
-      serviceState = serviceState.copy(isBound = false)
+      stateCollectionJob?.cancel()
+      stateCollectionJob = null
+      binder = null
+      serviceStateFlow.value = null
     }
   }
 
@@ -299,7 +292,7 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun stopService() {
-    if (serviceState.isBound) {
+    if (serviceStateFlow.value != null) {
       unbindService()
     }
 
@@ -318,7 +311,7 @@ class MainActivity : ComponentActivity() {
   private fun updateCredentialWarning() {
     val prefs = PreferenceManager.getDefaultSharedPreferences(this)
     val blocked = prefs.getBoolean(SubmissionWorker.PREF_SUBMISSIONS_BLOCKED, false)
-    serviceState = serviceState.copy(credentialWarningVisible = blocked)
+    uiState = uiState.copy(credentialWarningVisible = blocked)
   }
 }
 
