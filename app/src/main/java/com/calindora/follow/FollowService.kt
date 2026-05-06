@@ -1,7 +1,6 @@
 package com.calindora.follow
 
 import android.Manifest
-import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -17,6 +16,7 @@ import android.os.Binder
 import android.os.Environment
 import android.os.IBinder
 import android.os.SystemClock
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
@@ -28,7 +28,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import java.util.Locale
+import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -156,7 +156,7 @@ class FollowService : Service() {
     val pendingIntent = PendingIntent.getActivity(this, 0, intent, FLAG_IMMUTABLE)
 
     val notification =
-        Notification.Builder(this, "com.calindora.follow.default")
+        NotificationCompat.Builder(this, "com.calindora.follow.default")
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(getText(R.string.notification_title))
             .setContentText(getText(R.string.notification_text))
