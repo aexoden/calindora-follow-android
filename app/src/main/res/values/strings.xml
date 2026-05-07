@@ -32,6 +32,7 @@
   <string name="label_clear_queue">CLEAR QUEUE</string>
   <string name="label_debug_off">DEBUG BUTTONS DISABLED</string>
   <string name="label_debug_on">DEBUG BUTTONS ENABLED</string>
+  <string name="label_drop_first_queued">DROP FIRST QUEUED</string>
   <string name="label_force_sync">FORCE SYNC</string>
   <string name="label_gps_time">GPS Time:</string>
   <string name="label_latitude">Latitude:</string>

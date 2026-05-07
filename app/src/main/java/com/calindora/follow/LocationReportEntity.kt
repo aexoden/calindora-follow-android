@@ -68,6 +68,14 @@ interface LocationReportDao {
   @Query("DELETE FROM location_reports WHERE submittedAt = 0 AND permanentlyFailed = false")
   suspend fun deleteUnsubmittedReports()
 
+  @Query(
+      "DELETE FROM location_reports WHERE id = " +
+          "(SELECT id FROM location_reports " +
+          "WHERE submittedAt = 0 AND permanentlyFailed = false " +
+          "ORDER BY timestamp ASC LIMIT 1)"
+  )
+  suspend fun deleteOldestUnsubmittedReport()
+
   @Query("UPDATE location_reports SET submittedAt = :timestamp WHERE id = :id")
   suspend fun markAsSubmitted(id: Long, timestamp: Long)
 

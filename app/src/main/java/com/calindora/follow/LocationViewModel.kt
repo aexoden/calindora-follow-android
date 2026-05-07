@@ -23,6 +23,10 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
     viewModelScope.launch { repository.clearQueue() }
   }
 
+  fun dropOldestUnsubmittedReport() {
+    viewModelScope.launch { repository.dropOldestUnsubmittedReport() }
+  }
+
   fun forceSubmission() {
     repository.forceSubmission()
   }
@@ -47,6 +51,10 @@ class LocationRepository(
 
   suspend fun clearQueue() {
     locationReportDao.deleteUnsubmittedReports()
+  }
+
+  suspend fun dropOldestUnsubmittedReport() {
+    locationReportDao.deleteOldestUnsubmittedReport()
   }
 
   fun forceSubmission() {

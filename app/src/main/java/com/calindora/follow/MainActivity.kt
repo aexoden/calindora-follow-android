@@ -158,6 +158,7 @@ class MainActivity : ComponentActivity() {
             onTrackToggle = { isChecked -> onButtonTrack(isChecked) },
             onLogToggle = { isChecked -> onButtonLog(isChecked) },
             onClearClick = { locationViewModel.clearQueue() },
+            onDropFirstClick = { locationViewModel.dropOldestUnsubmittedReport() },
             onForceSyncClick = { locationViewModel.forceSubmission() },
             onSettingsClick = {
               val intent = Intent(this, SettingsActivity::class.java)
@@ -303,6 +304,7 @@ fun MainScreen(
     onTrackToggle: (Boolean) -> Unit,
     onLogToggle: (Boolean) -> Unit,
     onClearClick: () -> Unit,
+    onDropFirstClick: () -> Unit,
     onForceSyncClick: () -> Unit,
     onSettingsClick: () -> Unit,
     isBound: Boolean,
@@ -359,6 +361,7 @@ fun MainScreen(
           onLogToggle = onLogToggle,
           onDebugToggle = { isDebugEnabled = it },
           onClearClick = onClearClick,
+          onDropFirstClick = onDropFirstClick,
           onForceSyncClick = onForceSyncClick,
       )
     }
@@ -495,6 +498,7 @@ fun ControlsSection(
     onLogToggle: (Boolean) -> Unit,
     onDebugToggle: (Boolean) -> Unit,
     onClearClick: () -> Unit,
+    onDropFirstClick: () -> Unit,
     onForceSyncClick: () -> Unit,
 ) {
   Column {
@@ -540,12 +544,22 @@ fun ControlsSection(
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    Button(
-        onClick = onClearClick,
-        enabled = isDebugEnabled,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-      Text(stringResource(R.string.label_clear_queue))
+    Row(modifier = Modifier.fillMaxWidth()) {
+      Button(
+          onClick = onClearClick,
+          enabled = isDebugEnabled,
+          modifier = Modifier.weight(1f).padding(end = 8.dp),
+      ) {
+        Text(stringResource(R.string.label_clear_queue))
+      }
+
+      Button(
+          onClick = onDropFirstClick,
+          enabled = isDebugEnabled,
+          modifier = Modifier.weight(1f).padding(start = 8.dp),
+      ) {
+        Text(stringResource(R.string.label_drop_first_queued))
+      }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
