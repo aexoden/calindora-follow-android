@@ -22,21 +22,28 @@ repos:
     rev: v4.3.0
     hooks:
       - id: conventional-pre-commit
-        stages: [commit-msg]
+        stages: [ commit-msg ]
 
   # Android formatting, linting, and testing
   - repo: https://github.com/macisamuele/language-formatters-pre-commit-hooks
     rev: fc6db25b1274e8adefb7ae32bb497560e7885a8c
     hooks:
       - id: pretty-format-kotlin
-        args: [--ktfmt]
+        args: [ --ktfmt ]
 
   - repo: local
     hooks:
-      - id: assemble
+      - id: assemble-debug
         name: assemble check
         description: Check that the Android project assembles successfully
         entry: ./gradlew assembleDebug
+        language: system
+        pass_filenames: false
+
+      - id: assemble-release
+        name: assemble release check
+        description: Check that the Android project assembles successfully in release mode
+        entry: ./gradlew assembleRelease
         language: system
         pass_filenames: false
 

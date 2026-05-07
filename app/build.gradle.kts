@@ -1,3 +1,4 @@
+import java.util.*
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
 plugins {
@@ -6,6 +7,17 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
   alias(libs.plugins.ksp)
 }
+
+val keystoreProperties =
+    Properties().apply {
+      val file = rootProject.file("keystore.properties")
+      if (file.exists()) {
+        file.inputStream().use { load(it) }
+      }
+    }
+
+fun signingValue(propertyKey: String, envKey: String): String? =
+    keystoreProperties.getProperty(propertyKey) ?: System.getenv(envKey)
 
 android {
   namespace = "com.calindora.follow"
@@ -21,6 +33,22 @@ android {
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 
+  signingConfigs {
+    create("release") {
+      val store = signingValue("storeFile", "FOLLOW_KEYSTORE_PATH")
+      val storePass = signingValue("storePassword", "FOLLOW_KEYSTORE_PASSWORD")
+      val alias = signingValue("keyAlias", "FOLLOW_KEY_ALIAS")
+      val keyPass = signingValue("keyPassword", "FOLLOW_KEY_PASSWORD")
+
+      if (store != null && storePass != null && alias != null && keyPass != null) {
+        storeFile = file(store)
+        storePassword = storePass
+        keyAlias = alias
+        keyPassword = keyPass
+      }
+    }
+  }
+
   buildTypes {
     debug {
       applicationIdSuffix = ".debug"
@@ -34,6 +62,11 @@ android {
           getDefaultProguardFile("proguard-android-optimize.txt"),
           "proguard-rules.pro",
       )
+
+      signingConfigs
+          .getByName("release")
+          .takeIf { it.storeFile != null }
+          ?.let { signingConfig = it }
     }
   }
 

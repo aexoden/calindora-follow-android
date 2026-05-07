@@ -30,6 +30,9 @@ jobs:
       - name: Assemble debug APK
         run: ./gradlew assembleDebug
 
+      - name: Assemble unsigned release APK
+        run: ./gradlew assembleRelease
+
       - name: Lint
         run: ./gradlew lintDebug
 
