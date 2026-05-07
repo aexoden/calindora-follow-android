@@ -45,6 +45,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
   private val locationReportDao = AppDatabase.getInstance(application).locationReportDao()
   private val settingsDataStore = application.settingsDataStore
   private val encryptedSecretStore = EncryptedSecretStore(application)
+  private val credentialStatusFlow = application.credentialStatusFlow
 
   private val settingsRepository = SettingsRepository(application, locationReportDao)
 
@@ -88,20 +89,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
   private fun startRuntimeStateObserver() {
     viewModelScope.launch {
-      settingsDataStore.data
-          .map { prefs ->
-            (prefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true) to
-                (prefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0)
-          }
-          .distinctUntilChanged()
-          .collect { (blocked, failures) ->
-            _uiState.update {
-              it.copy(
-                  isCredentialBlocked = blocked,
-                  consecutiveAuthFailures = failures,
-              )
-            }
-          }
+      credentialStatusFlow.collect { status ->
+        _uiState.update {
+          it.copy(
+              isCredentialBlocked = status.isBlocked,
+              consecutiveAuthFailures = status.consecutiveAuthFailures,
+          )
+        }
+      }
     }
   }
 

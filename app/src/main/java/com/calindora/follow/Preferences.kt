@@ -8,6 +8,9 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * DataStore-backed preferences for Calindora Follow.
@@ -52,3 +55,29 @@ val Context.settingsDataStore: DataStore<Preferences> by
           )
         },
     )
+
+/** Snapshot of submission auth state, derived from [settingsDataStore]. */
+data class CredentialStatus(
+    val isBlocked: Boolean,
+    val consecutiveAuthFailures: Int,
+) {
+  companion object {
+    val INITIAL = CredentialStatus(isBlocked = false, consecutiveAuthFailures = 0)
+  }
+}
+
+/**
+ * Live [CredentialStatus] view of [settingsDataStore]. Emits a new value whenever either of the
+ * underlying preference keys changes, with `distinctUntilChanged` semantics.
+ */
+val Context.credentialStatusFlow: Flow<CredentialStatus>
+  get() =
+      settingsDataStore.data
+          .map {
+            CredentialStatus(
+                isBlocked = it[com.calindora.follow.Preferences.KEY_SUBMISSIONS_BLOCKED] == true,
+                consecutiveAuthFailures =
+                    it[com.calindora.follow.Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
+            )
+          }
+          .distinctUntilChanged()

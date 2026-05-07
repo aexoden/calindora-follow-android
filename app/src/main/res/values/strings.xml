@@ -14,6 +14,7 @@
   <string name="action_show_password">Show password</string>
   <string name="app_name">Calindora Follow</string>
   <string name="credential_warning">Authentication errors detected. Submissions paused. Check settings.</string>
+  <string name="credential_warning_failures">Authentication issue %1$d/%2$d. Check settings if this persists.</string>
   <string name="dialog_delete_title">Delete Failed Reports</string>
   <string name="dialog_export_title">Export Failed Reports</string>
   <string name="dialog_location_permission_message">Calindora Follow needs location permission to share your location. Since the permission was permanently denied, you\'ll need to enable it from system settings.</string>

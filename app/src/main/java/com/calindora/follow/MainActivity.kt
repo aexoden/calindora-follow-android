@@ -66,8 +66,6 @@ import java.util.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 private const val FEET_PER_METER = 3.2808399
@@ -134,16 +132,13 @@ class MainActivity : ComponentActivity() {
 
     checkNotificationPermission()
 
-    val credentialWarningFlow =
-        settingsDataStore.data
-            .map { it[Preferences.KEY_SUBMISSIONS_BLOCKED] == true }
-            .distinctUntilChanged()
+    val credentialFlow = credentialStatusFlow
 
     setContent {
       CalindoraFollowTheme {
         val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
-        val credentialWarningVisible by
-            credentialWarningFlow.collectAsStateWithLifecycle(initialValue = false)
+        val credentialStatus by
+            credentialFlow.collectAsStateWithLifecycle(initialValue = CredentialStatus.INITIAL)
         val syncWorkInfo by
             locationViewModel.syncWorkInfo.collectAsStateWithLifecycle(initialValue = null)
         val isBound = serviceState != null
@@ -170,7 +165,7 @@ class MainActivity : ComponentActivity() {
             isTracking = serviceState?.tracking == true,
             isLogging = serviceState?.logging == true,
             locationData = serviceState?.location,
-            credentialWarningVisible = credentialWarningVisible,
+            credentialStatus = credentialStatus,
             showLocationSettingsDialog = showLocationSettingsDialog,
             onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
             onOpenAppSettings = {
@@ -313,7 +308,7 @@ fun MainScreen(
     isTracking: Boolean,
     isLogging: Boolean,
     locationData: Location?,
-    credentialWarningVisible: Boolean,
+    credentialStatus: CredentialStatus,
     showLocationSettingsDialog: Boolean,
     onDismissLocationSettingsDialog: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -351,7 +346,7 @@ fun MainScreen(
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      CredentialWarningBanner(isVisible = credentialWarningVisible)
+      CredentialWarningBanner(status = credentialStatus)
 
       Spacer(modifier = Modifier.height(8.dp))
 
@@ -477,19 +472,36 @@ fun StatusRow(label: String, value: String) {
 }
 
 @Composable
-fun CredentialWarningBanner(isVisible: Boolean) {
+fun CredentialWarningBanner(status: CredentialStatus) {
   AnimatedVisibility(
-      visible = isVisible,
+      visible = status.isBlocked || status.consecutiveAuthFailures > 0,
       enter = fadeIn() + expandVertically(),
       exit = fadeOut() + shrinkVertically(),
   ) {
+    val containerColor =
+        if (status.isBlocked) MaterialTheme.colorScheme.errorContainer
+        else MaterialTheme.colorScheme.tertiaryContainer
+    val contentColor =
+        if (status.isBlocked) MaterialTheme.colorScheme.onErrorContainer
+        else MaterialTheme.colorScheme.onTertiaryContainer
+    val text =
+        if (status.isBlocked) {
+          stringResource(R.string.credential_warning)
+        } else {
+          stringResource(
+              R.string.credential_warning_failures,
+              status.consecutiveAuthFailures,
+              Config.Submission.MAX_AUTH_FAILURES,
+          )
+        }
+
     Surface(
-        color = MaterialTheme.colorScheme.errorContainer,
+        color = containerColor,
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
     ) {
       Text(
-          text = stringResource(R.string.credential_warning),
-          color = MaterialTheme.colorScheme.onErrorContainer,
+          text = text,
+          color = contentColor,
           style = MaterialTheme.typography.bodyMedium,
           modifier = Modifier.padding(8.dp),
       )
