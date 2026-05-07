@@ -28,6 +28,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -333,7 +335,13 @@ fun MainScreen(
         )
       }
   ) { paddingValues ->
-    Column(modifier = Modifier.padding(paddingValues).padding(16.dp).fillMaxSize()) {
+    Column(
+        modifier =
+            Modifier.padding(paddingValues)
+                .padding(16.dp)
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+    ) {
       LocationStatusSection(
           locationData = locationData,
           lastSubmissionTime = lastSubmissionTime,
@@ -341,25 +349,27 @@ fun MainScreen(
           syncWorkInfo = if (isDebugEnabled) null else syncWorkInfo,
       )
 
-      if (isDebugEnabled) {
-        SyncStatusCard(workInfo = syncWorkInfo)
-      }
-
       Spacer(modifier = Modifier.height(8.dp))
 
       CredentialWarningBanner(isVisible = credentialWarningVisible)
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(8.dp))
 
-      ControlsSection(
+      ServiceControlsSection(
           isBound = isBound,
           isTracking = isTracking,
           isLogging = isLogging,
-          isDebugEnabled = isDebugEnabled,
           onServiceToggle = onServiceToggle,
           onTrackToggle = onTrackToggle,
           onLogToggle = onLogToggle,
+      )
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      DebugSection(
+          isDebugEnabled = isDebugEnabled,
           onDebugToggle = { isDebugEnabled = it },
+          syncWorkInfo = syncWorkInfo,
           onClearClick = onClearClick,
           onDropFirstClick = onDropFirstClick,
           onForceSyncClick = onForceSyncClick,
@@ -488,18 +498,13 @@ fun CredentialWarningBanner(isVisible: Boolean) {
 }
 
 @Composable
-fun ControlsSection(
+fun ServiceControlsSection(
     isBound: Boolean,
     isTracking: Boolean,
     isLogging: Boolean,
-    isDebugEnabled: Boolean,
     onServiceToggle: (Boolean) -> Unit,
     onTrackToggle: (Boolean) -> Unit,
     onLogToggle: (Boolean) -> Unit,
-    onDebugToggle: (Boolean) -> Unit,
-    onClearClick: () -> Unit,
-    onDropFirstClick: () -> Unit,
-    onForceSyncClick: () -> Unit,
 ) {
   Column {
     ToggleButton(
@@ -531,9 +536,19 @@ fun ControlsSection(
           modifier = Modifier.weight(1f).padding(start = 8.dp),
       )
     }
+  }
+}
 
-    Spacer(modifier = Modifier.weight(1f))
-
+@Composable
+private fun DebugSection(
+    isDebugEnabled: Boolean,
+    onDebugToggle: (Boolean) -> Unit,
+    syncWorkInfo: WorkInfo?,
+    onClearClick: () -> Unit,
+    onDropFirstClick: () -> Unit,
+    onForceSyncClick: () -> Unit,
+) {
+  Column {
     ToggleButton(
         checked = isDebugEnabled,
         onCheckedChange = onDebugToggle,
@@ -542,34 +557,40 @@ fun ControlsSection(
         modifier = Modifier.fillMaxWidth(),
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Row(modifier = Modifier.fillMaxWidth()) {
-      Button(
-          onClick = onClearClick,
-          enabled = isDebugEnabled,
-          modifier = Modifier.weight(1f).padding(end = 8.dp),
-      ) {
-        Text(stringResource(R.string.label_clear_queue))
-      }
-
-      Button(
-          onClick = onDropFirstClick,
-          enabled = isDebugEnabled,
-          modifier = Modifier.weight(1f).padding(start = 8.dp),
-      ) {
-        Text(stringResource(R.string.label_drop_first_queued))
-      }
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Button(
-        onClick = onForceSyncClick,
-        enabled = isDebugEnabled,
-        modifier = Modifier.fillMaxWidth(),
+    AnimatedVisibility(
+        visible = isDebugEnabled,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
     ) {
-      Text(stringResource(R.string.label_force_sync))
+      Column {
+        Spacer(modifier = Modifier.height(16.dp))
+
+        SyncStatusCard(workInfo = syncWorkInfo)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+          Button(
+              onClick = onClearClick,
+              modifier = Modifier.weight(1f).padding(end = 8.dp),
+          ) {
+            Text(stringResource(R.string.label_clear_queue))
+          }
+
+          Button(
+              onClick = onDropFirstClick,
+              modifier = Modifier.weight(1f).padding(start = 8.dp),
+          ) {
+            Text(stringResource(R.string.label_drop_first_queued))
+          }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Button(onClick = onForceSyncClick, modifier = Modifier.fillMaxWidth()) {
+          Text(stringResource(R.string.label_force_sync))
+        }
+      }
     }
   }
 }
