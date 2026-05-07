@@ -41,9 +41,24 @@ import retrofit2.Response
 sealed class SubmissionResult {
   data object Success : SubmissionResult()
 
+  /**
+   * Server is temporarily unavailable, the network failed, or the response was unexpected. Retry
+   * the work later.
+   */
   data class TransientError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
 
+  /**
+   * The report is malformed or otherwise unprocessable by the server. Most likely a bug in either
+   * this application or the server itself. Retrying is unlikely to help, though if it is a bug in
+   * the server it could conceivably be fixed.
+   */
   data class PermanentError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
+
+  /**
+   * The device's configuration is incorrect. No report will succeed until the user fixes the
+   * configuration, so we don't blame any individual report for the failure.
+   */
+  data class ConfigurationError(val errorCode: Int, val errorMessage: String) : SubmissionResult()
 }
 
 private data class SubmissionConfig(
@@ -242,6 +257,32 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
                   processedAllReports = false
                 }
+                is SubmissionResult.ConfigurationError -> {
+                  // Don't increment submissionAttempts, as we don't ever want these to be marked as
+                  // permanently failed.
+                  val newCount =
+                      (settingsDataStore.data.first()[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES]
+                          ?: 0) + 1
+
+                  if (newCount >= Config.Submission.MAX_AUTH_FAILURES) {
+                    settingsDataStore.edit {
+                      it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
+                      it[Preferences.KEY_SUBMISSIONS_BLOCKED] = true
+                    }
+                    notifyCredentialIssue(newCount)
+                    return@withContext Result.failure(
+                        workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
+                    )
+                  } else {
+                    settingsDataStore.edit {
+                      it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
+                    }
+                  }
+
+                  continueSubmission = false
+                  processedAllReports = false
+                  break
+                }
                 is SubmissionResult.TransientError -> {
                   val isNetworkLevel = result.errorCode == -1
 
@@ -253,8 +294,8 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       // This report has failed too many times, so it's probable that it's an issue
                       // with the report itself. We'll mark it as permanently failed, and if it does
                       // turn out to be a temporary issue with the server, the user can reset
-                      // reports
-                      // from the settings screen to retry. Review this for a future v2 of the API.
+                      // reports from the settings screen to retry. Review this for a future v2 of
+                      // the API.
                       locationReportDao.markAsPermanentlyFailed(
                           report.id,
                           result.errorCode,
@@ -262,27 +303,6 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                       )
                       processedAllReports = false
                       continue
-                    } else {
-                      if (result.errorCode == HttpURLConnection.HTTP_UNAUTHORIZED) {
-                        val newCount =
-                            (settingsDataStore.data
-                                .first()[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0) + 1
-
-                        if (newCount >= Config.Submission.MAX_AUTH_FAILURES) {
-                          settingsDataStore.edit {
-                            it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
-                            it[Preferences.KEY_SUBMISSIONS_BLOCKED] = true
-                          }
-                          notifyCredentialIssue(newCount)
-                          return@withContext Result.failure(
-                              workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
-                          )
-                        } else {
-                          settingsDataStore.edit {
-                            it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
-                          }
-                        }
-                      }
                     }
                   }
 
@@ -444,23 +464,18 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
     return when (code) {
       HttpURLConnection.HTTP_UNAUTHORIZED -> {
-        // BUG: The server doesn't actually ever generate this exact string. The server has no way
-        // to distinguish an invalid signature from an incorrect secret, so it reports them all bad
-        // with the error "The provided signature was invalid". We don't want to treat all auth
-        // failures as permanent, so we are just leaving this bug for now, and will only be able
-        // to address it with a future v2 API.
-        if (errorBody.contains("invalid signature", ignoreCase = true)) {
-          SubmissionResult.PermanentError(
-              code,
-              "Invalid signature for this report",
-          )
-        } else {
-          SubmissionResult.TransientError(code, errorBody.ifEmpty { "Unauthorized" })
-        }
+        // The v1 API returns 401 for both an incorrect secret (a configuration issue) and an
+        // invalid signature (a client/server bug). The server's actual error body is "The provided
+        // signature was invalid" in both cases, and it has no way to distinguish them, so we can't
+        // route likely bugs to PermanentError reliably. Treat every 401 as a configuration error; a
+        // future v2 API should split these into distinct responses.
+        SubmissionResult.ConfigurationError(code, errorBody.ifEmpty { "Unauthorized" })
       }
 
       HttpURLConnection.HTTP_NOT_FOUND -> {
-        SubmissionResult.PermanentError(code, "Unknown API key")
+        // Unknown device key or an outright incorrect service URL. No report will succeed until the
+        // user fixes the configuration.
+        SubmissionResult.ConfigurationError(code, "Unknown device key")
       }
 
       HttpURLConnection.HTTP_BAD_REQUEST,
