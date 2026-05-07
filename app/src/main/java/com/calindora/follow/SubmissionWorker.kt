@@ -177,7 +177,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
               writer.write("Accuracy: ${report.accuracy}\n")
               writer.write("Failure Code: ${report.permanentFailureCode}\n")
               writer.write("Failure Reason: ${report.permanentFailureReason}\n")
-              writer.write("Signature Input: ${report.signatureInput}\n\n---\n\n")
+              writer.write("Signature Input: ${report.signatureInput()}\n\n---\n\n")
             }
           }
         }
@@ -433,7 +433,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
       submissionConfig: SubmissionConfig,
   ): SubmissionResult {
     val payload = report.toPayload()
-    val signature = formatSignature(report.signatureInput, submissionConfig.secret)
+    val signature = formatSignature(report.signatureInput(), submissionConfig.secret)
 
     return try {
       val response =

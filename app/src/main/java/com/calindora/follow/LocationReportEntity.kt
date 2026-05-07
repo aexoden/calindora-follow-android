@@ -25,7 +25,6 @@ data class LocationReportEntity(
     val speed: Float,
     val bearing: Float,
     val accuracy: Float,
-    val signatureInput: String,
     val permanentlyFailed: Boolean = false,
     val permanentFailureCode: Int = 0,
     val permanentFailureReason: String = "",
@@ -95,6 +94,17 @@ interface LocationReportDao {
 /** Reconstruct the wire payload from the persisted columns. */
 internal fun LocationReportEntity.toPayload(): LocationReportPayload =
     LocationReportPayload.build(
+        timestampMillis = timestamp,
+        latitude = latitude,
+        longitude = longitude,
+        altitude = altitude,
+        speed = speed.toDouble(),
+        bearing = bearing.toDouble(),
+        accuracy = accuracy.toDouble(),
+    )
+
+internal fun LocationReportEntity.signatureInput(): String =
+    LocationReportPayload.signatureInput(
         timestampMillis = timestamp,
         latitude = latitude,
         longitude = longitude,

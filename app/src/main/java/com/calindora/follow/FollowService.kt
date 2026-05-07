@@ -241,17 +241,6 @@ class FollowService : Service() {
     val nowElapsed = SystemClock.elapsedRealtime()
     if (tracking && nowElapsed - lastReportElapsed >= Config.Tracking.UPDATE_INTERVAL_MS) {
       serviceScope.launch {
-        val signatureInput =
-            LocationReportPayload.signatureInput(
-                timestampMillis = location.time,
-                latitude = location.latitude,
-                longitude = location.longitude,
-                altitude = location.altitude,
-                speed = location.speed.toDouble(),
-                bearing = location.bearing.toDouble(),
-                accuracy = location.accuracy.toDouble(),
-            )
-
         val reportEntity =
             LocationReportEntity(
                 timestamp = location.time,
@@ -261,7 +250,6 @@ class FollowService : Service() {
                 speed = location.speed,
                 bearing = location.bearing,
                 accuracy = location.accuracy,
-                signatureInput = signatureInput,
             )
 
         locationReportDao.insert(reportEntity)
