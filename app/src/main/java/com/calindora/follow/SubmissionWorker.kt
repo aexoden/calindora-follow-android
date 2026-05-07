@@ -27,8 +27,6 @@ import java.io.FileWriter
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -39,11 +37,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import retrofit2.Response
-
-private const val CREDENTIAL_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.credentials"
-
-private val LOG_FILE_FORMATTER =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
 
 sealed class SubmissionResult {
   data object Success : SubmissionResult()
@@ -79,7 +72,7 @@ class CredentialResetReceiver : BroadcastReceiver() {
 
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(SubmissionWorker.CREDENTIAL_NOTIFICATION_ID)
+        notificationManager.cancel(Notifications.Ids.CREDENTIAL)
       } finally {
         pendingResult.finish()
       }
@@ -101,7 +94,27 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
   companion object {
     const val UNIQUE_WORK_NAME = "submission_work"
-    const val CREDENTIAL_NOTIFICATION_ID = 38
+
+    /** Key for the failure reason string in [androidx.work.WorkInfo]. */
+    const val OUTPUT_KEY_ERROR_REASON = "error_reason"
+
+    /** Key for additional error context in [androidx.work.WorkInfo]. */
+    const val OUTPUT_KEY_DETAILS = "details"
+
+    /** Key for the submission timestamp posted on success in [androidx.work.WorkInfo]. */
+    const val OUTPUT_KEY_SUBMISSION_TIME = "submission_time"
+
+    /**
+     * Value of [Companion.OUTPUT_KEY_ERROR_REASON] when submissions are paused due to auth
+     * failures.
+     */
+    const val ERROR_REASON_CREDENTIAL_ISSUE = "CREDENTIAL_ISSUE"
+
+    /**
+     * Value of [Companion.OUTPUT_KEY_ERROR_REASON] when service URL / key / secret are missing or
+     * invalid.
+     */
+    const val ERROR_REASON_INVALID_CONFIG = "INVALID_CONFIG"
 
     fun buildWorkRequest(expedited: Boolean = false): OneTimeWorkRequest {
       val constraints = Constraints.Builder().setRequiredNetworkType(NetworkType.CONNECTED).build()
@@ -133,7 +146,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
         val file =
             File(
                 context.getExternalFilesDir("logs"),
-                "failed_reports_${LOG_FILE_FORMATTER.format(Instant.now())}.log",
+                "failed_reports_${Formatters.LOG_FILE_TIMESTAMP.format(Instant.now())}.log",
             )
 
         withContext(Dispatchers.IO) {
@@ -172,14 +185,18 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
         if (initialPrefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true) {
           Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
-          return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
+          return@withContext Result.failure(
+              workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
+          )
         }
 
         val authFailureCount = initialPrefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
         if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
           settingsDataStore.edit { it[Preferences.KEY_SUBMISSIONS_BLOCKED] = true }
           notifyCredentialIssue(authFailureCount)
-          return@withContext Result.failure(workDataOf("error_reason" to "CREDENTIAL_ISSUE"))
+          return@withContext Result.failure(
+              workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
+          )
         }
 
         val submissionConfig =
@@ -188,7 +205,10 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
               is ConfigResult.Invalid -> {
                 Log.w("SubmissionWorker", "Invalid configuration: ${result.reason}")
                 return@withContext Result.failure(
-                    workDataOf("error_reason" to "INVALID_CONFIG", "details" to result.reason)
+                    workDataOf(
+                        OUTPUT_KEY_ERROR_REASON to ERROR_REASON_INVALID_CONFIG,
+                        OUTPUT_KEY_DETAILS to result.reason,
+                    )
                 )
               }
             }
@@ -255,7 +275,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
                           }
                           notifyCredentialIssue(newCount)
                           return@withContext Result.failure(
-                              workDataOf("error_reason" to "CREDENTIAL_ISSUE")
+                              workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
                           )
                         } else {
                           settingsDataStore.edit {
@@ -283,7 +303,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           locationReportDao.deleteOldSubmittedReports(cutoff)
 
           return@withContext if (processedAllReports) {
-            Result.success(workDataOf("submission_time" to System.currentTimeMillis()))
+            Result.success(workDataOf(OUTPUT_KEY_SUBMISSION_TIME to System.currentTimeMillis()))
           } else {
             Result.retry()
           }
@@ -320,7 +340,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
     // Build notification with multiple actions
     val builder =
-        NotificationCompat.Builder(applicationContext, CREDENTIAL_NOTIFICATION_CHANNEL_ID)
+        NotificationCompat.Builder(applicationContext, Notifications.ChannelIds.CREDENTIALS)
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(applicationContext.getString(R.string.notification_credential_title))
             .setContentText(
@@ -344,13 +364,13 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             )
             .setAutoCancel(false)
 
-    notificationManager.notify(CREDENTIAL_NOTIFICATION_ID, builder.build())
+    notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
   }
 
   private fun ensureNotificationChannel(notificationManager: NotificationManager) {
     val channel =
         NotificationChannel(
-                CREDENTIAL_NOTIFICATION_CHANNEL_ID,
+                Notifications.ChannelIds.CREDENTIALS,
                 applicationContext.getString(R.string.notification_channel_name),
                 NotificationManager.IMPORTANCE_HIGH,
             )

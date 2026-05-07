@@ -25,7 +25,6 @@ import java.io.File
 import java.io.FileWriter
 import java.io.IOException
 import java.time.Instant
-import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.util.*
@@ -39,10 +38,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-private const val DEFAULT_NOTIFICATION_CHANNEL_ID = "com.calindora.follow.default"
-
-private val LOG_FILE_FORMATTER =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd-HHmmss").withZone(ZoneId.systemDefault())
 private val BODY_TIMESTAMP_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSxxx").withZone(ZoneOffset.UTC)
 private val SIGNATURE_TIMESTAMP_FORMATTER =
@@ -146,20 +141,20 @@ class FollowService : Service() {
     val pendingIntent = PendingIntent.getActivity(this, 0, intent, FLAG_IMMUTABLE)
 
     val notification =
-        NotificationCompat.Builder(this, DEFAULT_NOTIFICATION_CHANNEL_ID)
+        NotificationCompat.Builder(this, Notifications.ChannelIds.DEFAULT)
             .setSmallIcon(R.drawable.ic_stat_notification)
             .setContentTitle(getText(R.string.notification_title))
             .setContentText(getText(R.string.notification_text))
             .setContentIntent(pendingIntent)
             .build()
 
-    startForeground(1, notification)
+    startForeground(Notifications.Ids.FOREGROUND, notification)
   }
 
   private fun createNotificationChannel() {
     val name = getString(R.string.notification_channel_name)
     val importance = NotificationManager.IMPORTANCE_LOW
-    val channel = NotificationChannel(DEFAULT_NOTIFICATION_CHANNEL_ID, name, importance)
+    val channel = NotificationChannel(Notifications.ChannelIds.DEFAULT, name, importance)
 
     channel.description = getString(R.string.notification_channel_description)
 
@@ -189,7 +184,10 @@ class FollowService : Service() {
 
     try {
       val file =
-          File(getExternalFilesDir("logs"), LOG_FILE_FORMATTER.format(Instant.now()) + ".log")
+          File(
+              getExternalFilesDir("logs"),
+              Formatters.LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
+          )
       file.createNewFile()
 
       nmeaLog = BufferedWriter(FileWriter(file))

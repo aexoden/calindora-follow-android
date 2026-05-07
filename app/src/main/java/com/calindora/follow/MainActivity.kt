@@ -640,7 +640,7 @@ private fun SyncStatusCard(workInfo: WorkInfo?) {
       }
 
       if (workInfo.state == WorkInfo.State.FAILED) {
-        val errorReason = workInfo.outputData.getString("error_reason")
+        val errorReason = workInfo.outputData.getString(SubmissionWorker.OUTPUT_KEY_ERROR_REASON)
         if (!errorReason.isNullOrEmpty()) {
           StatusRow(label = stringResource(R.string.label_sync_last_error), value = errorReason)
         }
