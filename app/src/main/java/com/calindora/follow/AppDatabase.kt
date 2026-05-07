@@ -14,7 +14,7 @@ abstract class AppDatabase : RoomDatabase() {
   companion object {
     @Volatile private var INSTANCE: AppDatabase? = null
 
-    private val MIGRATION_2_3 =
+    internal val MIGRATION_2_3 =
         object : Migration(2, 3) {
           override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -29,7 +29,7 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
-    private val MIGRATION_3_4 =
+    internal val MIGRATION_3_4 =
         object : Migration(3, 4) {
           override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL(
@@ -45,7 +45,7 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
-    private val MIGRATION_4_5 =
+    internal val MIGRATION_4_5 =
         object : Migration(4, 5) {
           override fun migrate(db: SupportSQLiteDatabase) {
             // The `body` column was a serialization cache of fields already stored as typed
@@ -98,7 +98,7 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
-    private val MIGRATION_5_6 =
+    internal val MIGRATION_5_6 =
         object : Migration(5, 6) {
           override fun migrate(db: SupportSQLiteDatabase) {
             // The `signatureInput` column was a serialization cache of fields already stored as
@@ -150,6 +150,9 @@ abstract class AppDatabase : RoomDatabase() {
           }
         }
 
+    internal val ALL_MIGRATIONS: Array<Migration> =
+        arrayOf(MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6)
+
     fun getInstance(context: Context): AppDatabase {
       return INSTANCE
           ?: synchronized(this) {
@@ -163,10 +166,7 @@ abstract class AppDatabase : RoomDatabase() {
                     // reliably. Allow destructive migration only from v1.
                     .fallbackToDestructiveMigrationFrom(dropAllTables = true, 1)
                     .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
-                    .addMigrations(MIGRATION_2_3)
-                    .addMigrations(MIGRATION_3_4)
-                    .addMigrations(MIGRATION_4_5)
-                    .addMigrations(MIGRATION_5_6)
+                    .addMigrations(*ALL_MIGRATIONS)
                     .build()
             INSTANCE = instance
             instance

@@ -70,6 +70,8 @@ android {
     }
   }
 
+  sourceSets { getByName("androidTest").assets.directories += "$projectDir/schemas" }
+
   buildFeatures {
     buildConfig = true
     compose = true
@@ -111,6 +113,7 @@ dependencies {
   implementation(libs.tink.android)
   ksp(libs.androidx.room.compiler)
   testImplementation(libs.junit)
+  androidTestImplementation(libs.androidx.room.testing)
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.espresso.core)
 }
