@@ -35,7 +35,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.SerializationException
 import retrofit2.Response
 
 sealed class SubmissionResult {
@@ -433,16 +432,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
       report: LocationReportEntity,
       submissionConfig: SubmissionConfig,
   ): SubmissionResult {
-    val payload =
-        try {
-          FollowJson.decodeFromString<LocationReportPayload>(report.body)
-        } catch (e: SerializationException) {
-          return SubmissionResult.PermanentError(
-              0,
-              "Stored report body is malformed: ${e.message}",
-          )
-        }
-
+    val payload = report.toPayload()
     val signature = formatSignature(report.signatureInput, submissionConfig.secret)
 
     return try {

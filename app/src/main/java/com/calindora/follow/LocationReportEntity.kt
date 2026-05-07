@@ -26,7 +26,6 @@ data class LocationReportEntity(
     val bearing: Float,
     val accuracy: Float,
     val signatureInput: String,
-    val body: String,
     val permanentlyFailed: Boolean = false,
     val permanentFailureCode: Int = 0,
     val permanentFailureReason: String = "",
@@ -92,3 +91,15 @@ interface LocationReportDao {
   @Query("DELETE FROM location_reports WHERE submittedAt > 0 AND submittedAt < :timestamp")
   suspend fun deleteOldSubmittedReports(timestamp: Long)
 }
+
+/** Reconstruct the wire payload from the persisted columns. */
+internal fun LocationReportEntity.toPayload(): LocationReportPayload =
+    LocationReportPayload.build(
+        timestampMillis = timestamp,
+        latitude = latitude,
+        longitude = longitude,
+        altitude = altitude,
+        speed = speed.toDouble(),
+        bearing = bearing.toDouble(),
+        accuracy = accuracy.toDouble(),
+    )

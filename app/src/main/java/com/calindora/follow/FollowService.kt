@@ -25,9 +25,6 @@ import java.io.File
 import java.io.FileWriter
 import java.io.IOException
 import java.time.Instant
-import java.time.ZoneOffset
-import java.time.format.DateTimeFormatter
-import java.util.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,11 +34,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-
-private val BODY_TIMESTAMP_FORMATTER =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSSxxx").withZone(ZoneOffset.UTC)
-private val SIGNATURE_TIMESTAMP_FORMATTER =
-    DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssxxx").withZone(ZoneOffset.UTC)
 
 class FollowService : Service() {
   private val binder = FollowBinder()
@@ -249,9 +241,16 @@ class FollowService : Service() {
     val nowElapsed = SystemClock.elapsedRealtime()
     if (tracking && nowElapsed - lastReportElapsed >= Config.Tracking.UPDATE_INTERVAL_MS) {
       serviceScope.launch {
-        val report = Report(location)
-        val signatureInput = report.formatSignatureInput()
-        val body = FollowJson.encodeToString(report.toPayload())
+        val signatureInput =
+            LocationReportPayload.signatureInput(
+                timestampMillis = location.time,
+                latitude = location.latitude,
+                longitude = location.longitude,
+                altitude = location.altitude,
+                speed = location.speed.toDouble(),
+                bearing = location.bearing.toDouble(),
+                accuracy = location.accuracy.toDouble(),
+            )
 
         val reportEntity =
             LocationReportEntity(
@@ -263,7 +262,6 @@ class FollowService : Service() {
                 bearing = location.bearing,
                 accuracy = location.accuracy,
                 signatureInput = signatureInput,
-                body = body,
             )
 
         locationReportDao.insert(reportEntity)
@@ -287,52 +285,6 @@ class FollowService : Service() {
   /*
    * Inner Classes
    */
-
-  class Report(private val location: Location) {
-    fun toPayload(): LocationReportPayload =
-        LocationReportPayload(
-            timestamp = formatTimestamp(location.time),
-            latitude = formatNumber(location.latitude),
-            longitude = formatNumber(location.longitude),
-            altitude = formatNumber(location.altitude),
-            speed = formatNumber(location.speed.toDouble()),
-            bearing = formatNumber(location.bearing.toDouble()),
-            accuracy = formatNumber(location.accuracy.toDouble()),
-        )
-
-    fun formatSignatureInput(): String = buildString {
-      append(formatTimestampSignature(location.time))
-      append(formatNumber(location.latitude))
-      append(formatNumber(location.longitude))
-      append(formatNumber(location.altitude))
-      append(formatNumber(location.speed.toDouble()))
-      append(formatNumber(location.bearing.toDouble()))
-      append(formatNumber(location.accuracy.toDouble()))
-    }
-
-    private fun formatNumber(number: Double): String {
-      val output = String.format(Locale.US, "%.12f", number)
-
-      // Normalize signed-zero to positive zero to ensure consistent signature
-      // input. The comparison is intentionally done on the formatted string to
-      // ensure that anything that would be formatted as "-0.000000000000" is
-      // normalized, such as tiny negative numbers. The server formats the
-      // numbers independently and calculates the HMAC over its own output, so
-      // a sign mismatch breaks signature validation. Revisit when the v2 API
-      // is implemented.
-      if (output == "-0.000000000000") {
-        return "0.000000000000"
-      }
-
-      return output
-    }
-
-    private fun formatTimestamp(timestamp: Long): String =
-        BODY_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
-
-    private fun formatTimestampSignature(timestamp: Long): String =
-        SIGNATURE_TIMESTAMP_FORMATTER.format(Instant.ofEpochMilli(timestamp))
-  }
 
   inner class FollowBinder : Binder() {
     fun getService(): FollowService = this@FollowService
