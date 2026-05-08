@@ -1,6 +1,5 @@
 package com.calindora.follow
 
-import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
@@ -336,8 +335,6 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     val notificationManager =
         applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
-    ensureNotificationChannel(notificationManager)
-
     // Tapping the notification goes to Settings where the user can update their credentials
     val settingsIntent =
         Intent(applicationContext, SettingsActivity::class.java).apply {
@@ -384,23 +381,6 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             .setAutoCancel(false)
 
     notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
-  }
-
-  private fun ensureNotificationChannel(notificationManager: NotificationManager) {
-    val channel =
-        NotificationChannel(
-                Notifications.ChannelIds.CREDENTIALS,
-                applicationContext.getString(R.string.notification_channel_credentials_name),
-                NotificationManager.IMPORTANCE_HIGH,
-            )
-            .apply {
-              description =
-                  applicationContext.getString(
-                      R.string.notification_channel_credentials_description
-                  )
-            }
-
-    notificationManager.createNotificationChannel(channel)
   }
 
   private fun formatSignature(signatureInput: String, secret: String): String {

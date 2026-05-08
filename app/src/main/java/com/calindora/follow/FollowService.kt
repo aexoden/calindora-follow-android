@@ -1,8 +1,6 @@
 package com.calindora.follow
 
 import android.Manifest
-import android.app.NotificationChannel
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.Service
@@ -100,7 +98,6 @@ class FollowService : Service() {
   override fun onCreate() {
     super.onCreate()
 
-    createNotificationChannel()
     createNotification()
     startLocationUpdates()
   }
@@ -141,17 +138,6 @@ class FollowService : Service() {
             .build()
 
     startForeground(Notifications.Ids.FOREGROUND, notification)
-  }
-
-  private fun createNotificationChannel() {
-    val name = getString(R.string.notification_channel_default_name)
-    val importance = NotificationManager.IMPORTANCE_LOW
-    val channel = NotificationChannel(Notifications.ChannelIds.DEFAULT, name, importance)
-
-    channel.description = getString(R.string.notification_channel_default_description)
-
-    val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
-    notificationManager.createNotificationChannel(channel)
   }
 
   private fun isExternalStorageWritable(): Boolean {
