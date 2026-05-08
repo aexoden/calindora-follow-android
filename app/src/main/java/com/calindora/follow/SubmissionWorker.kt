@@ -27,8 +27,6 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.time.Instant
 import java.util.concurrent.TimeUnit
-import javax.crypto.Mac
-import javax.crypto.spec.SecretKeySpec
 import kotlin.Result as KotlinResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -384,16 +382,6 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
   }
 
-  private fun formatSignature(signatureInput: String, secret: String): String {
-    val mac = Mac.getInstance("HmacSHA256")
-    val key = SecretKeySpec(secret.toByteArray(Charsets.UTF_8), mac.algorithm)
-    mac.init(key)
-
-    val digest = mac.doFinal(signatureInput.toByteArray(Charsets.UTF_8))
-
-    return digest.joinToString("") { "%02x".format(it) }
-  }
-
   private suspend fun getSubmissionConfig(): ConfigResult {
     val prefs = settingsDataStore.data.first()
     val rawUrl = prefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL
@@ -417,7 +405,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
       submissionConfig: SubmissionConfig,
   ): SubmissionResult {
     val payload = report.toPayload()
-    val signature = formatSignature(report.signatureInput(), submissionConfig.secret)
+    val signature = hmacSha256Hex(report.signatureInput(), submissionConfig.secret)
 
     return try {
       val response =
