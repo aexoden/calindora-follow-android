@@ -1,3 +1,4 @@
+import java.io.ByteArrayOutputStream
 import java.util.*
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 
@@ -19,6 +20,22 @@ val keystoreProperties =
 fun signingValue(propertyKey: String, envKey: String): String? =
     keystoreProperties.getProperty(propertyKey) ?: System.getenv(envKey)
 
+fun runGitCommand(vararg args: String): String? {
+  return try {
+    val stdout = ByteArrayOutputStream()
+    val process =
+        ProcessBuilder(listOf("git") + args).directory(rootDir).redirectErrorStream(false).start()
+    process.inputStream.copyTo(stdout)
+    if (process.waitFor() == 0) stdout.toString(Charsets.UTF_8).trim().ifEmpty { null } else null
+  } catch (_: Exception) {
+    null
+  }
+}
+
+val gitVersionName: String = runGitCommand("describe", "--tags", "--always", "--dirty") ?: "unknown"
+
+val gitCommitCount: Int = runGitCommand("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
+
 android {
   namespace = "com.calindora.follow"
   compileSdk = 37
@@ -27,8 +44,8 @@ android {
     applicationId = "com.calindora.follow"
     minSdk = 33
     targetSdk = 37
-    versionCode = 1
-    versionName = "v0.1.0"
+    versionCode = gitCommitCount
+    versionName = gitVersionName
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
