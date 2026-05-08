@@ -26,7 +26,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
@@ -38,7 +37,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -332,25 +330,6 @@ private fun ActionButtonWithDescription(
         modifier = Modifier.fillMaxWidth(),
     )
   }
-}
-
-@Composable
-private fun ConfirmationDialog(
-    title: String,
-    text: String,
-    confirmText: String,
-    onConfirm: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-  AlertDialog(
-      onDismissRequest = onDismiss,
-      title = { Text(title) },
-      text = { Text(text) },
-      confirmButton = { TextButton(onClick = onConfirm) { Text(confirmText) } },
-      dismissButton = {
-        TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
-      },
-  )
 }
 
 @Composable

@@ -30,7 +30,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,7 +41,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -374,20 +372,12 @@ fun MainScreen(
   }
 
   if (showLocationSettingsDialog) {
-    AlertDialog(
-        onDismissRequest = onDismissLocationSettingsDialog,
-        title = { Text(stringResource(R.string.dialog_location_permission_title)) },
-        text = { Text(stringResource(R.string.dialog_location_permission_message)) },
-        confirmButton = {
-          TextButton(onClick = onOpenAppSettings) {
-            Text(stringResource(R.string.action_open_settings))
-          }
-        },
-        dismissButton = {
-          TextButton(onClick = onDismissLocationSettingsDialog) {
-            Text(stringResource(R.string.action_cancel))
-          }
-        },
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_location_permission_title),
+        text = stringResource(R.string.dialog_location_permission_message),
+        confirmText = stringResource(R.string.action_open_settings),
+        onConfirm = onOpenAppSettings,
+        onDismiss = onDismissLocationSettingsDialog,
     )
   }
 }
