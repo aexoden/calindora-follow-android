@@ -14,6 +14,7 @@ import android.os.Binder
 import android.os.Environment
 import android.os.IBinder
 import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.ExistingWorkPolicy
@@ -150,13 +151,15 @@ class FollowService : Service() {
         write(nmea)
         flush()
       }
-    } catch (_: IOException) {
+    } catch (e: IOException) {
+      Log.w("FollowService", "NMEA logging stopped due to I/O error", e)
       setLogging(false)
     }
   }
 
   private fun prepareLog(): Boolean {
     if (!isExternalStorageWritable()) {
+      Log.w("FollowService", "Cannot start NMEA logging: external storage is not mounted")
       return false
     }
 
@@ -169,7 +172,8 @@ class FollowService : Service() {
       file.createNewFile()
 
       nmeaLog = BufferedWriter(FileWriter(file))
-    } catch (_: IOException) {
+    } catch (e: IOException) {
+      Log.w("FollowService", "Cannot start NMEA logging: failed to create log file", e)
       return false
     }
 
