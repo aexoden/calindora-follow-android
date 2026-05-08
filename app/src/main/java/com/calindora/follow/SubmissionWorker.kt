@@ -390,11 +390,14 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     val channel =
         NotificationChannel(
                 Notifications.ChannelIds.CREDENTIALS,
-                applicationContext.getString(R.string.notification_channel_name),
+                applicationContext.getString(R.string.notification_channel_credentials_name),
                 NotificationManager.IMPORTANCE_HIGH,
             )
             .apply {
-              description = applicationContext.getString(R.string.notification_channel_description)
+              description =
+                  applicationContext.getString(
+                      R.string.notification_channel_credentials_description
+                  )
             }
 
     notificationManager.createNotificationChannel(channel)

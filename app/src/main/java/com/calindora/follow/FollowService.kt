@@ -144,11 +144,11 @@ class FollowService : Service() {
   }
 
   private fun createNotificationChannel() {
-    val name = getString(R.string.notification_channel_name)
+    val name = getString(R.string.notification_channel_default_name)
     val importance = NotificationManager.IMPORTANCE_LOW
     val channel = NotificationChannel(Notifications.ChannelIds.DEFAULT, name, importance)
 
-    channel.description = getString(R.string.notification_channel_description)
+    channel.description = getString(R.string.notification_channel_default_description)
 
     val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
     notificationManager.createNotificationChannel(channel)
