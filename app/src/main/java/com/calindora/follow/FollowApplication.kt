@@ -9,9 +9,14 @@ import android.app.Application
  * created.
  */
 class FollowApplication : Application() {
+  private lateinit var backoffManager: SubmissionBackoffManager
+
   override fun onCreate() {
     super.onCreate()
 
     Notifications.ensureChannels(this)
+
+    backoffManager = SubmissionBackoffManager(this)
+    backoffManager.start()
   }
 }
