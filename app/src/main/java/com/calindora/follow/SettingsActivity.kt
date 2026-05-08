@@ -226,10 +226,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
       Spacer(modifier = Modifier.height(16.dp))
 
       // Reset Credential Block (visible if blocked or enough auth failures)
-      if (
-          uiState.isCredentialBlocked ||
-              uiState.consecutiveAuthFailures >= Config.Submission.MAX_AUTH_FAILURES
-      ) {
+      if (uiState.shouldShowResetButton) {
         ActionButtonWithDescription(
             text = stringResource(R.string.preference_reset_credential_block),
             description = stringResource(R.string.preference_reset_credential_block_summary),

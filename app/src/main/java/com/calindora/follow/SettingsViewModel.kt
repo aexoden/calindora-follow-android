@@ -38,7 +38,11 @@ data class SettingsUiState(
     val showDeleteDialog: Boolean = false,
     val toastMessage: ToastMessage? = null,
     val isLoading: Boolean = true,
-)
+) {
+  /** Whether the "Reset credential block" action should be offered. */
+  val shouldShowResetButton: Boolean
+    get() = isCredentialBlocked || consecutiveAuthFailures >= Config.Submission.MAX_AUTH_FAILURES
+}
 
 /** ViewModel for the Settings screen */
 @OptIn(FlowPreview::class)
