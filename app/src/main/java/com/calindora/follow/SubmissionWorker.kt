@@ -29,6 +29,7 @@ import java.time.Instant
 import java.util.concurrent.TimeUnit
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
+import kotlin.Result as KotlinResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -147,46 +148,46 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           .build()
     }
 
-    suspend fun exportFailedReports(context: Context): Boolean {
-      val dao = AppDatabase.getInstance(context).locationReportDao()
-      val reports = dao.getPermanentlyFailedReports(Int.MAX_VALUE)
+    suspend fun exportFailedReports(context: Context): KotlinResult<Unit> =
+        runCatching {
+              val dao = AppDatabase.getInstance(context).locationReportDao()
+              val reports = dao.getPermanentlyFailedReports(Int.MAX_VALUE)
 
-      if (reports.isEmpty()) return false
+              // Nothing to export is treated as a no-op success. This should only happen in rare
+              // race
+              // conditions, as the action in the UI is gated behind failedReportCount > 0.
+              if (reports.isEmpty()) return@runCatching
 
-      try {
-        if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) return false
+              if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) {
+                throw IOException("External storage is not mounted")
+              }
 
-        val file =
-            File(
-                context.getExternalFilesDir("logs"),
-                "failed_reports_${Formatters.LOG_FILE_TIMESTAMP.format(Instant.now())}.log",
-            )
+              val file =
+                  File(
+                      context.getExternalFilesDir("logs"),
+                      "failed_reports_${Formatters.LOG_FILE_TIMESTAMP.format(Instant.now())}.log",
+                  )
 
-        withContext(Dispatchers.IO) {
-          BufferedWriter(FileWriter(file)).use { writer ->
-            for (report in reports) {
-              writer.write("Report ID: ${report.id}\n")
-              writer.write("Created At: ${Instant.ofEpochMilli(report.createdAt)}\n")
-              writer.write("Timestamp: ${report.timestamp}\n")
-              writer.write("Latitude: ${report.latitude}\n")
-              writer.write("Longitude: ${report.longitude}\n")
-              writer.write("Altitude: ${report.altitude}\n")
-              writer.write("Speed: ${report.speed}\n")
-              writer.write("Bearing: ${report.bearing}\n")
-              writer.write("Accuracy: ${report.accuracy}\n")
-              writer.write("Failure Code: ${report.permanentFailureCode}\n")
-              writer.write("Failure Reason: ${report.permanentFailureReason}\n")
-              writer.write("Signature Input: ${report.signatureInput()}\n\n---\n\n")
+              withContext(Dispatchers.IO) {
+                BufferedWriter(FileWriter(file)).use { writer ->
+                  for (report in reports) {
+                    writer.write("Report ID: ${report.id}\n")
+                    writer.write("Created At: ${Instant.ofEpochMilli(report.createdAt)}\n")
+                    writer.write("Timestamp: ${report.timestamp}\n")
+                    writer.write("Latitude: ${report.latitude}\n")
+                    writer.write("Longitude: ${report.longitude}\n")
+                    writer.write("Altitude: ${report.altitude}\n")
+                    writer.write("Speed: ${report.speed}\n")
+                    writer.write("Bearing: ${report.bearing}\n")
+                    writer.write("Accuracy: ${report.accuracy}\n")
+                    writer.write("Failure Code: ${report.permanentFailureCode}\n")
+                    writer.write("Failure Reason: ${report.permanentFailureReason}\n")
+                    writer.write("Signature Input: ${report.signatureInput()}\n\n---\n\n")
+                  }
+                }
+              }
             }
-          }
-        }
-
-        return true
-      } catch (e: IOException) {
-        Log.e("SubmissionWorker", "Failed to export reports", e)
-        return false
-      }
-    }
+            .onFailure { Log.e("SubmissionWorker", "Failed to export reports", it) }
   }
 
   override suspend fun doWork(): Result =

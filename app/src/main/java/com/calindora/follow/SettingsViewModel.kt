@@ -3,6 +3,7 @@ package com.calindora.follow
 import android.app.Application
 import android.app.NotificationManager
 import android.content.Context
+import android.util.Log
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -176,14 +177,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
   // Action functions
   fun resetCredentialBlock() {
     viewModelScope.launch {
-      val success = settingsRepository.resetCredentialBlock()
+      val result = settingsRepository.resetCredentialBlock()
 
       _uiState.update {
         it.copy(
             showResetDialog = false,
             toastMessage =
                 ToastMessage.Simple(
-                    if (success) R.string.toast_credential_reset_success
+                    if (result.isSuccess) R.string.toast_credential_reset_success
                     else R.string.toast_credential_reset_failure
                 ),
         )
@@ -194,13 +195,14 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
   fun retryFailedReports() {
     viewModelScope.launch {
       val count = _uiState.value.failedReportCount
-      val success = settingsRepository.retryFailedReports()
+      val result = settingsRepository.retryFailedReports()
 
       _uiState.update {
         it.copy(
             showRetryDialog = false,
             toastMessage =
-                if (success) ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, count)
+                if (result.isSuccess)
+                    ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, count)
                 else ToastMessage.Simple(R.string.toast_retry_failure),
         )
       }
@@ -209,14 +211,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
   fun exportFailedReports() {
     viewModelScope.launch {
-      val success = settingsRepository.exportFailedReports()
+      val result = settingsRepository.exportFailedReports()
 
       _uiState.update {
         it.copy(
             showExportDialog = false,
             toastMessage =
                 ToastMessage.Simple(
-                    if (success) R.string.toast_export_success else R.string.toast_export_failure
+                    if (result.isSuccess) R.string.toast_export_success
+                    else R.string.toast_export_failure
                 ),
         )
       }
@@ -225,14 +228,15 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
   fun deleteFailedReports() {
     viewModelScope.launch {
-      val success = settingsRepository.deleteFailedReports()
+      val result = settingsRepository.deleteFailedReports()
 
       _uiState.update {
         it.copy(
             showDeleteDialog = false,
             toastMessage =
                 ToastMessage.Simple(
-                    if (success) R.string.toast_delete_success else R.string.toast_delete_failure
+                    if (result.isSuccess) R.string.toast_delete_success
+                    else R.string.toast_delete_failure
                 ),
         )
       }
@@ -247,7 +251,7 @@ class SettingsRepository(
 ) {
   private val settingsDataStore = context.settingsDataStore
 
-  suspend fun resetCredentialBlock(): Boolean =
+  suspend fun resetCredentialBlock(): Result<Unit> =
       runCatching {
             settingsDataStore.edit {
               it[Preferences.KEY_SUBMISSIONS_BLOCKED] = false
@@ -265,13 +269,11 @@ class SettingsRepository(
             (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(
                 Notifications.Ids.CREDENTIAL
             )
-
-            true
           }
-          .getOrDefault(false)
+          .onFailure { Log.w(TAG, "Failed to reset credential block", it) }
 
-  suspend fun retryFailedReports(): Boolean =
-      runCatching {
+  suspend fun retryFailedReports(): Result<Unit> =
+      runCatching<Unit> {
             locationReportDao.retryPermanentlyFailedReports()
 
             WorkManager.getInstance(context)
@@ -280,18 +282,16 @@ class SettingsRepository(
                     ExistingWorkPolicy.REPLACE,
                     SubmissionWorker.buildWorkRequest(expedited = true),
                 )
-
-            true
           }
-          .getOrDefault(false)
+          .onFailure { Log.w(TAG, "Failed to retry failed reports", it) }
 
-  suspend fun exportFailedReports(): Boolean =
-      runCatching { SubmissionWorker.exportFailedReports(context) }.getOrDefault(false)
+  suspend fun exportFailedReports(): Result<Unit> = SubmissionWorker.exportFailedReports(context)
 
-  suspend fun deleteFailedReports(): Boolean =
-      runCatching {
-            locationReportDao.deletePermanentlyFailedReports()
-            true
-          }
-          .getOrDefault(false)
+  suspend fun deleteFailedReports(): Result<Unit> =
+      runCatching { locationReportDao.deletePermanentlyFailedReports() }
+          .onFailure { Log.w(TAG, "Failed to delete failed reports", it) }
+
+  private companion object {
+    const val TAG = "SettingsRepository"
+  }
 }
