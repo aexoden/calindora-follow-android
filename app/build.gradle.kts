@@ -59,6 +59,27 @@ fun gitCommand(vararg args: String): Provider<String> =
       parameters.workingDir.set(rootProject.layout.projectDirectory)
     }
 
+/** Reads the `describe` field from `.git-archive-info`, when populated by `git archive`. */
+abstract class ArchiveDescribeValueSource :
+    ValueSource<String, ArchiveDescribeValueSource.Parameters> {
+  interface Parameters : ValueSourceParameters {
+    val archiveFile: RegularFileProperty
+  }
+
+  override fun obtain(): String? {
+    val file = parameters.archiveFile.asFile.get()
+    if (!file.exists()) return null
+    val describe =
+        Properties().apply { file.inputStream().use { load(it) } }.getProperty("describe")?.trim()
+    return describe?.takeIf { it.isNotEmpty() && !it.startsWith($$"$Format:") }
+  }
+}
+
+fun archiveDescribe(): Provider<String> =
+    providers.of(ArchiveDescribeValueSource::class.java) {
+      parameters.archiveFile.set(rootProject.layout.projectDirectory.file(".git-archive-info"))
+    }
+
 private val describeRegex = Regex("""^v(\d+)\.(\d+)\.(\d+)(?:-(\d+)-g[0-9a-f]+)?(?:-dirty)?$""")
 
 /**
@@ -81,7 +102,9 @@ fun deriveVersionCode(describe: String): Int {
 }
 
 val gitVersionName: Provider<String> =
-    gitCommand("describe", "--tags", "--always", "--dirty").orElse("unknown")
+    gitCommand("describe", "--tags", "--always", "--dirty")
+        .orElse(archiveDescribe())
+        .orElse("unknown")
 
 val gitVersionCode: Provider<Int> = gitVersionName.map { deriveVersionCode(it) }
 

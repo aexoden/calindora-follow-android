@@ -67,3 +67,17 @@ The signed APK is written to `app/build/outputs/apk/release/app-release.apk`.
 
 If signing material is missing, the build still produces
 `app-release-unsigned.apk`, which can be signed manually with `apksigner`.
+
+## Source Tarball Builds
+
+The release tarballs published on GitHub (and any tarball produced by
+`git archive`) are self-contained: the build drives `versionName` and
+`versionCode` from metadata embedded into `.git-archive-info` at archive time
+via `git archive`'s `export-subst` mechanism.
+
+If you instead extract a tarball that did not pass through `git archive` (for
+example, a plain `tar` of a working directory with `.git` removed), the build
+falls back to `versionName = "unknown"` and `versionCode = 1`. That APK will
+install cleanly on a device with no prior install but cannot upgrade an existing
+build whose `versionCode` is greater than 1. For anything other than a quick
+test, build from a git checkout or from a `git archive`-produced tarball.
