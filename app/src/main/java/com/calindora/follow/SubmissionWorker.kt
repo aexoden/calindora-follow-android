@@ -1,6 +1,5 @@
 package com.calindora.follow
 
-import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -82,9 +81,7 @@ class CredentialResetReceiver : BroadcastReceiver() {
                 SubmissionWorker.buildWorkRequest(expedited = true),
             )
 
-        val notificationManager =
-            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        notificationManager.cancel(Notifications.Ids.CREDENTIAL)
+        context.notificationManager.cancel(Notifications.Ids.CREDENTIAL)
       } finally {
         pendingResult.finish()
       }
@@ -331,9 +328,6 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
       }
 
   private fun notifyCredentialIssue(failureCount: Int) {
-    val notificationManager =
-        applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
     // Tapping the notification goes to Settings where the user can update their credentials
     val settingsIntent =
         Intent(applicationContext, SettingsActivity::class.java).apply {
@@ -379,7 +373,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             )
             .setAutoCancel(false)
 
-    notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
+    applicationContext.notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
   }
 
   private suspend fun getSubmissionConfig(): ConfigResult {

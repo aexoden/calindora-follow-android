@@ -1,7 +1,6 @@
 package com.calindora.follow
 
 import android.app.Application
-import android.app.NotificationManager
 import android.content.Context
 import android.util.Log
 import androidx.datastore.preferences.core.edit
@@ -300,9 +299,7 @@ class SettingsRepository(
                 )
 
             // Cancel the notification if it's showing
-            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).cancel(
-                Notifications.Ids.CREDENTIAL
-            )
+            context.notificationManager.cancel(Notifications.Ids.CREDENTIAL)
           }
           .onFailure { Log.w(TAG, "Failed to reset credential block", it) }
 

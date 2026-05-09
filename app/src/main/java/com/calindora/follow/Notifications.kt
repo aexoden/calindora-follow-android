@@ -31,9 +31,6 @@ object Notifications {
    * OS notification settings before any notification fires.
    */
   fun ensureChannels(context: Context) {
-    val notificationManager =
-        context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
     val default =
         NotificationChannel(
                 ChannelIds.DEFAULT,
@@ -54,6 +51,10 @@ object Notifications {
               description = context.getString(R.string.notification_channel_credentials_description)
             }
 
-    notificationManager.createNotificationChannels(listOf(default, credentials))
+    context.notificationManager.createNotificationChannels(listOf(default, credentials))
   }
 }
+
+/** [NotificationManager] for this [Context]. Always non-null on supported API levels. */
+val Context.notificationManager: NotificationManager
+  get() = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
