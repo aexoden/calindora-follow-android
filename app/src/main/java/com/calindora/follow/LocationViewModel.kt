@@ -1,9 +1,10 @@
 package com.calindora.follow
 
-import android.app.Application
-import android.content.Context
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
@@ -11,10 +12,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-class LocationViewModel(application: Application) : AndroidViewModel(application) {
-  private val repository =
-      LocationRepository(application, AppDatabase.getInstance(application).locationReportDao())
-
+class LocationViewModel(private val repository: LocationRepository) : ViewModel() {
   val queueSize: Flow<Int> = repository.queueSize
   val lastSubmissionTime: Flow<Long> = repository.lastSubmissionTime
   val syncWorkInfo: Flow<WorkInfo?> = repository.syncWorkInfo
@@ -30,12 +28,18 @@ class LocationViewModel(application: Application) : AndroidViewModel(application
   fun forceSubmission() {
     repository.forceSubmission()
   }
+
+  companion object {
+    fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+      initializer { LocationViewModel(container.locationRepository) }
+    }
+  }
 }
 
 /** Repository for location-tracking data and submission scheduling. */
 class LocationRepository(
-    private val context: Context,
     private val locationReportDao: LocationReportDao,
+    private val workManager: WorkManager,
 ) {
   val queueSize: Flow<Int> = locationReportDao.getUnsubmittedReportCount()
   val lastSubmissionTime: Flow<Long> = locationReportDao.getLastSubmissionTime()
@@ -45,9 +49,9 @@ class LocationRepository(
    * enqueued yet (or it has been pruned).
    */
   val syncWorkInfo: Flow<WorkInfo?> =
-      WorkManager.getInstance(context)
-          .getWorkInfosForUniqueWorkFlow(SubmissionWorker.UNIQUE_WORK_NAME)
-          .map { it.firstOrNull() }
+      workManager.getWorkInfosForUniqueWorkFlow(SubmissionWorker.UNIQUE_WORK_NAME).map {
+        it.firstOrNull()
+      }
 
   suspend fun clearQueue() {
     locationReportDao.deleteUnsubmittedReports()
@@ -58,11 +62,10 @@ class LocationRepository(
   }
 
   fun forceSubmission() {
-    WorkManager.getInstance(context)
-        .enqueueUniqueWork(
-            SubmissionWorker.UNIQUE_WORK_NAME,
-            ExistingWorkPolicy.REPLACE,
-            SubmissionWorker.buildWorkRequest(expedited = true),
-        )
+    workManager.enqueueUniqueWork(
+        SubmissionWorker.UNIQUE_WORK_NAME,
+        ExistingWorkPolicy.REPLACE,
+        SubmissionWorker.buildWorkRequest(expedited = true),
+    )
   }
 }

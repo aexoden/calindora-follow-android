@@ -1,5 +1,6 @@
 package com.calindora.follow
 
+import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -7,6 +8,8 @@ import android.content.Intent
 import android.os.Environment
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.work.BackoffPolicy
 import androidx.work.Constraints
@@ -16,9 +19,9 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.OutOfQuotaPolicy
-import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
+import com.calindora.follow.SubmissionWorker.Companion.OUTPUT_KEY_ERROR_REASON
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -66,22 +69,22 @@ private data class SubmissionConfig(
 class CredentialResetReceiver : BroadcastReceiver() {
   override fun onReceive(context: Context, intent: Intent) {
     val pendingResult = goAsync()
+    val container = context.appContainer
 
     CoroutineScope(Dispatchers.IO).launch {
       try {
-        context.settingsDataStore.edit {
+        container.settingsDataStore.edit {
           it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = false
           it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0
         }
 
-        WorkManager.getInstance(context)
-            .enqueueUniqueWork(
-                SubmissionWorker.UNIQUE_WORK_NAME,
-                ExistingWorkPolicy.REPLACE,
-                SubmissionWorker.buildWorkRequest(expedited = true),
-            )
+        container.workManager.enqueueUniqueWork(
+            SubmissionWorker.UNIQUE_WORK_NAME,
+            ExistingWorkPolicy.REPLACE,
+            SubmissionWorker.buildWorkRequest(expedited = true),
+        )
 
-        context.notificationManager.cancel(Notifications.Ids.CREDENTIAL)
+        container.notificationManager.cancel(Notifications.Ids.CREDENTIAL)
       } finally {
         pendingResult.finish()
       }
@@ -95,12 +98,14 @@ private sealed class ConfigResult {
   data class Invalid(val reason: String) : ConfigResult()
 }
 
-class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
-    CoroutineWorker(appContext, workerParams) {
-  private val locationReportDao = AppDatabase.getInstance(applicationContext).locationReportDao()
-  private val settingsDataStore = applicationContext.settingsDataStore
-  private val encryptedSecretStore = EncryptedSecretStore(applicationContext)
-
+class SubmissionWorker(
+    appContext: Context,
+    workerParams: WorkerParameters,
+    private val locationReportDao: LocationReportDao,
+    private val settingsDataStore: DataStore<Preferences>,
+    private val encryptedSecretStore: EncryptedSecretStore,
+    private val notificationManager: NotificationManager,
+) : CoroutineWorker(appContext, workerParams) {
   companion object {
     const val UNIQUE_WORK_NAME = "submission_work"
 
@@ -113,15 +118,11 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
     /** Key for the submission timestamp posted on success in [androidx.work.WorkInfo]. */
     const val OUTPUT_KEY_SUBMISSION_TIME = "submission_time"
 
-    /**
-     * Value of [Companion.OUTPUT_KEY_ERROR_REASON] when submissions are paused due to auth
-     * failures.
-     */
+    /** Value of [OUTPUT_KEY_ERROR_REASON] when submissions are paused due to auth failures. */
     const val ERROR_REASON_CREDENTIAL_ISSUE = "CREDENTIAL_ISSUE"
 
     /**
-     * Value of [Companion.OUTPUT_KEY_ERROR_REASON] when service URL / key / secret are missing or
-     * invalid.
+     * Value of [OUTPUT_KEY_ERROR_REASON] when service URL / key / secret are missing or invalid.
      */
     const val ERROR_REASON_INVALID_CONFIG = "INVALID_CONFIG"
 
@@ -143,14 +144,21 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           .build()
     }
 
-    suspend fun exportFailedReports(context: Context): KotlinResult<Unit> =
+    /**
+     * Export permanently-failed reports to a log file in [logsDir].
+     *
+     * Treats an empty queue as a no-op success. Returns failure if external storage isn't mounted
+     * or the write fails.
+     */
+    suspend fun exportFailedReports(
+        locationReportDao: LocationReportDao,
+        logsDir: File?,
+    ): KotlinResult<Unit> =
         runCatching {
-              val dao = AppDatabase.getInstance(context).locationReportDao()
-              val reports = dao.getPermanentlyFailedReports(Int.MAX_VALUE)
+              val reports = locationReportDao.getPermanentlyFailedReports(Int.MAX_VALUE)
 
               // Nothing to export is treated as a no-op success. This should only happen in rare
-              // race
-              // conditions, as the action in the UI is gated behind failedReportCount > 0.
+              // race conditions, as the action in the UI is gated behind failedReportCount > 0.
               if (reports.isEmpty()) return@runCatching
 
               if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) {
@@ -159,7 +167,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
               val file =
                   File(
-                      context.getExternalFilesDir("logs"),
+                      logsDir,
                       "failed_reports_${Formatters.LOG_FILE_TIMESTAMP.format(Instant.now())}.log",
                   )
 
@@ -231,10 +239,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             for (report in reports) {
               when (val result = submitSingleReport(report, submissionConfig)) {
                 is SubmissionResult.Success -> {
-                  locationReportDao.markAsSubmitted(
-                      report.id,
-                      System.currentTimeMillis(),
-                  )
+                  locationReportDao.markAsSubmitted(report.id, System.currentTimeMillis())
 
                   val currentFailures =
                       settingsDataStore.data.first()[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES]
@@ -374,7 +379,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
             )
             .setAutoCancel(false)
 
-    applicationContext.notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
+    notificationManager.notify(Notifications.Ids.CREDENTIAL, builder.build())
   }
 
   private suspend fun getSubmissionConfig(): ConfigResult {
@@ -438,10 +443,7 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
       HttpURLConnection.HTTP_BAD_REQUEST,
       HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
       422 -> {
-        SubmissionResult.PermanentError(
-            code,
-            errorBody.ifEmpty { "Client error $code" },
-        )
+        SubmissionResult.PermanentError(code, errorBody.ifEmpty { "Client error $code" })
       }
 
       HttpURLConnection.HTTP_CLIENT_TIMEOUT,

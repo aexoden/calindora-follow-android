@@ -18,7 +18,6 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import androidx.work.ExistingWorkPolicy
-import androidx.work.WorkManager
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -49,7 +48,7 @@ class FollowService : Service() {
   private var lastReportElapsed = 0L
 
   private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
-  private val locationReportDao by lazy { AppDatabase.getInstance(this).locationReportDao() }
+  private val locationReportDao by lazy { appContainer.locationReportDao }
   private val locationManager by lazy { getSystemService(LOCATION_SERVICE) as LocationManager? }
 
   private var nmeaLog: BufferedWriter? = null
@@ -247,12 +246,11 @@ class FollowService : Service() {
   }
 
   private fun scheduleSubmissionWork() {
-    WorkManager.getInstance(this)
-        .enqueueUniqueWork(
-            SubmissionWorker.UNIQUE_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
-            SubmissionWorker.buildWorkRequest(),
-        )
+    appContainer.workManager.enqueueUniqueWork(
+        SubmissionWorker.UNIQUE_WORK_NAME,
+        ExistingWorkPolicy.KEEP,
+        SubmissionWorker.buildWorkRequest(),
+    )
   }
 
   /*

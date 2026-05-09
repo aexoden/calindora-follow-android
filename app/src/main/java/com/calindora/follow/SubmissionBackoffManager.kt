@@ -1,6 +1,5 @@
 package com.calindora.follow
 
-import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -26,8 +25,13 @@ import kotlinx.coroutines.launch
  * scheduled retry can be many minutes out. This monitor attempts to short-circuit that wait without
  * altering the WorkManager constraint itself, as past attempts to use a stricter [NetworkRequest]
  * as the constraint produced cases where work never ran at all for no obvious reason.
+ *
+ * If [connectivityManager] is null, [start] is a no-op.
  */
-class SubmissionBackoffManager(private val context: Context) {
+class SubmissionBackoffManager(
+    private val connectivityManager: ConnectivityManager?,
+    private val workManager: WorkManager,
+) {
   private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
   private val activeNetworks = mutableSetOf<Network>()
 
@@ -53,7 +57,7 @@ class SubmissionBackoffManager(private val context: Context) {
       }
 
   fun start() {
-    val cm = context.getSystemService(ConnectivityManager::class.java) ?: return
+    val cm = connectivityManager ?: return
     val request =
         NetworkRequest.Builder()
             .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
@@ -63,17 +67,18 @@ class SubmissionBackoffManager(private val context: Context) {
     try {
       cm.registerNetworkCallback(request, callback)
     } catch (e: SecurityException) {
-      Log.w(TAG, "Failed to register network callback; backoff rests disabled", e)
+      Log.w(TAG, "Failed to register network callback; backoff resets disabled", e)
     } catch (e: RuntimeException) {
       Log.w(TAG, "Network callback registration rejected", e)
     }
   }
 
   private suspend fun resetIfBackedOff() {
-    val wm = WorkManager.getInstance(context)
     val info =
-        wm.getWorkInfosForUniqueWorkFlow(SubmissionWorker.UNIQUE_WORK_NAME).first().firstOrNull()
-            ?: return
+        workManager
+            .getWorkInfosForUniqueWorkFlow(SubmissionWorker.UNIQUE_WORK_NAME)
+            .first()
+            .firstOrNull() ?: return
 
     if (info.state == WorkInfo.State.ENQUEUED && info.runAttemptCount > 0) {
       Log.d(
@@ -82,7 +87,7 @@ class SubmissionBackoffManager(private val context: Context) {
               "(runAttemptCount=${info.runAttemptCount})",
       )
     }
-    wm.enqueueUniqueWork(
+    workManager.enqueueUniqueWork(
         SubmissionWorker.UNIQUE_WORK_NAME,
         ExistingWorkPolicy.REPLACE,
         SubmissionWorker.buildWorkRequest(),

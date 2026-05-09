@@ -67,7 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.delay
 
 class SettingsActivity : ComponentActivity() {
-  private val viewModel: SettingsViewModel by viewModels()
+  private val viewModel: SettingsViewModel by viewModels { SettingsViewModel.factory(appContainer) }
 
   override fun onCreate(savedInstanceState: Bundle?) {
     enableEdgeToEdge()

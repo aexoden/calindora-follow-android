@@ -71,9 +71,12 @@ private val DISPLAY_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault())
 
 class MainActivity : ComponentActivity() {
-  private val locationViewModel: LocationViewModel by viewModels()
   private var binder: FollowService.FollowBinder? = null
   private var stateCollectionJob: Job? = null
+
+  private val locationViewModel: LocationViewModel by viewModels {
+    LocationViewModel.factory(appContainer)
+  }
 
   /** Latest snapshot from the bound service, or null if we aren't bound. */
   private val serviceStateFlow = MutableStateFlow<FollowService.ServiceState?>(null)

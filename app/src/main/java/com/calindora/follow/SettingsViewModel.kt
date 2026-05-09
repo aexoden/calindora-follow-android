@@ -1,17 +1,22 @@
 package com.calindora.follow
 
 import android.app.Application
-import android.content.Context
+import android.app.NotificationManager
 import android.util.Log
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import java.io.IOException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -50,14 +55,13 @@ data class SettingsUiState(
 
 /** ViewModel for the Settings screen */
 @OptIn(FlowPreview::class)
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
-  private val locationReportDao = AppDatabase.getInstance(application).locationReportDao()
-  private val settingsDataStore = application.settingsDataStore
-  private val encryptedSecretStore = EncryptedSecretStore(application)
-  private val credentialStatusFlow = application.credentialStatusFlow
-
-  private val settingsRepository = SettingsRepository(application, locationReportDao)
-
+class SettingsViewModel(
+    private val locationReportDao: LocationReportDao,
+    private val settingsDataStore: DataStore<Preferences>,
+    private val encryptedSecretStore: EncryptedSecretStore,
+    private val credentialStatusFlow: Flow<CredentialStatus>,
+    private val settingsRepository: SettingsRepository,
+) : ViewModel() {
   private val _uiState = MutableStateFlow(SettingsUiState())
   val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -200,8 +204,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
   }
 
-  // Settings update functions - these only update in-memory state
-  // The debounced collectors in init will handle saving to DataStore
+  // Settings update functions - these only update in-memory state. The debounced collectors in init
+  // will handle saving to DataStore.
   fun updateServiceUrl(url: String) = _uiState.update { it.copy(serviceUrl = url) }
 
   fun updateDeviceKey(key: String) = _uiState.update { it.copy(deviceKey = key) }
@@ -300,18 +304,31 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     }
   }
 
-  private companion object {
-    const val TAG = "SettingsViewModel"
+  companion object {
+    private const val TAG = "SettingsViewModel"
+
+    fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+      initializer {
+        SettingsViewModel(
+            locationReportDao = container.locationReportDao,
+            settingsDataStore = container.settingsDataStore,
+            encryptedSecretStore = container.encryptedSecretStore,
+            credentialStatusFlow = container.credentialStatusFlow,
+            settingsRepository = container.settingsRepository,
+        )
+      }
+    }
   }
 }
 
 /** Repository to handle settings-related data operations */
 class SettingsRepository(
-    private val context: Context,
+    private val application: Application,
     private val locationReportDao: LocationReportDao,
+    private val settingsDataStore: DataStore<Preferences>,
+    private val workManager: WorkManager,
+    private val notificationManager: NotificationManager,
 ) {
-  private val settingsDataStore = context.settingsDataStore
-
   suspend fun resetCredentialBlock(): Result<Unit> =
       runCatching {
             settingsDataStore.edit {
@@ -319,15 +336,14 @@ class SettingsRepository(
               it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0
             }
 
-            WorkManager.getInstance(context)
-                .enqueueUniqueWork(
-                    SubmissionWorker.UNIQUE_WORK_NAME,
-                    ExistingWorkPolicy.REPLACE,
-                    SubmissionWorker.buildWorkRequest(),
-                )
+            workManager.enqueueUniqueWork(
+                SubmissionWorker.UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                SubmissionWorker.buildWorkRequest(),
+            )
 
             // Cancel the notification if it's showing
-            context.notificationManager.cancel(Notifications.Ids.CREDENTIAL)
+            notificationManager.cancel(Notifications.Ids.CREDENTIAL)
           }
           .onFailure { Log.w(TAG, "Failed to reset credential block", it) }
 
@@ -335,16 +351,19 @@ class SettingsRepository(
       runCatching<Unit> {
             locationReportDao.retryPermanentlyFailedReports()
 
-            WorkManager.getInstance(context)
-                .enqueueUniqueWork(
-                    SubmissionWorker.UNIQUE_WORK_NAME,
-                    ExistingWorkPolicy.REPLACE,
-                    SubmissionWorker.buildWorkRequest(expedited = true),
-                )
+            workManager.enqueueUniqueWork(
+                SubmissionWorker.UNIQUE_WORK_NAME,
+                ExistingWorkPolicy.REPLACE,
+                SubmissionWorker.buildWorkRequest(expedited = true),
+            )
           }
           .onFailure { Log.w(TAG, "Failed to retry failed reports", it) }
 
-  suspend fun exportFailedReports(): Result<Unit> = SubmissionWorker.exportFailedReports(context)
+  suspend fun exportFailedReports(): Result<Unit> =
+      SubmissionWorker.exportFailedReports(
+          locationReportDao = locationReportDao,
+          logsDir = application.getExternalFilesDir("logs"),
+      )
 
   suspend fun deleteFailedReports(): Result<Unit> =
       runCatching { locationReportDao.deletePermanentlyFailedReports() }
