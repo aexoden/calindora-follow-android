@@ -59,11 +59,31 @@ fun gitCommand(vararg args: String): Provider<String> =
       parameters.workingDir.set(rootProject.layout.projectDirectory)
     }
 
+private val describeRegex = Regex("""^v(\d+)\.(\d+)\.(\d+)(?:-(\d+)-g[0-9a-f]+)?(?:-dirty)?$""")
+
+/**
+ * Parse a `git describe --tags --always --dirty` output and derive an Android versionCode.
+ *
+ * Recognized forms:
+ * - "v1.2.3"
+ * - "v1.2.3-25-g1234567"
+ * - "v1.2.3[-...]-dirty"
+ *
+ * versionCode = MAJOR * 10_000_000 + MINOR * 100_000 + PATCH * 1_000 + COMMITS_SINCE_TAG
+ */
+fun deriveVersionCode(describe: String): Int {
+  val match = describeRegex.matchEntire(describe) ?: return 1
+  val (major, minor, patch, commits) = match.destructured
+  return major.toInt() * 10_000_000 +
+      minor.toInt() * 100_000 +
+      patch.toInt() * 1_000 +
+      (commits.toIntOrNull() ?: 0)
+}
+
 val gitVersionName: Provider<String> =
     gitCommand("describe", "--tags", "--always", "--dirty").orElse("unknown")
 
-val gitCommitCount: Provider<Int> =
-    gitCommand("rev-list", "--count", "HEAD").map { it.toIntOrNull() ?: 1 }.orElse(1)
+val gitVersionCode: Provider<Int> = gitVersionName.map { deriveVersionCode(it) }
 
 android {
   namespace = "com.calindora.follow"
@@ -73,7 +93,7 @@ android {
     applicationId = "com.calindora.follow"
     minSdk = 33
     targetSdk = 37
-    versionCode = gitCommitCount.get()
+    versionCode = gitVersionCode.get()
     versionName = gitVersionName.get()
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
