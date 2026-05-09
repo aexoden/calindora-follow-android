@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
  * These constants are used to configure the behavior of the app. Some of them may be candidates for
  * promotion to user-configurable settings in the future, but for now they are hardcoded here.
  *
- * For user-configurable settings, see [Preferences].
+ * For user-configurable settings, see [AppPreferences].
  */
 object Config {
   /** GPS sampling and submission queueing. */

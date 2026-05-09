@@ -65,7 +65,7 @@ class EncryptedSecretStore(context: Context) {
     withContext(Dispatchers.IO) {
       val legacyPrefs =
           appContext.getSharedPreferences(
-              com.calindora.follow.Preferences.legacyPrefsName(appContext),
+              AppPreferences.legacyPrefsName(appContext),
               Context.MODE_PRIVATE,
           )
 

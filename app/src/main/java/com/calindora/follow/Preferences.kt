@@ -19,7 +19,7 @@ import kotlinx.coroutines.flow.map
  * - [settingsDataStore] holds plaintext settings plus operational state.
  * - The device secret lives in a separate Tink-encrypted store; see [EncryptedSecretStore].
  */
-object Preferences {
+object AppPreferences {
   // Plaintext settings
   val KEY_SERVICE_URL = stringPreferencesKey("preference_url")
   val KEY_DEVICE_KEY = stringPreferencesKey("preference_device_key")
@@ -53,8 +53,8 @@ val Context.settingsDataStore: DataStore<Preferences> by
           listOf(
               SharedPreferencesMigration(
                   context = context,
-                  sharedPreferencesName = com.calindora.follow.Preferences.legacyPrefsName(context),
-                  keysToMigrate = com.calindora.follow.Preferences.legacyMigrationKeys(),
+                  sharedPreferencesName = AppPreferences.legacyPrefsName(context),
+                  keysToMigrate = AppPreferences.legacyMigrationKeys(),
               )
           )
         },
@@ -79,9 +79,8 @@ val Context.credentialStatusFlow: Flow<CredentialStatus>
       settingsDataStore.data
           .map {
             CredentialStatus(
-                isBlocked = it[com.calindora.follow.Preferences.KEY_SUBMISSIONS_BLOCKED] == true,
-                consecutiveAuthFailures =
-                    it[com.calindora.follow.Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
+                isBlocked = it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true,
+                consecutiveAuthFailures = it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
             )
           }
           .distinctUntilChanged()
@@ -106,9 +105,8 @@ val Context.displayPreferencesFlow: Flow<DisplayPreferences>
       settingsDataStore.data
           .map {
             DisplayPreferences(
-                distanceUnit =
-                    DistanceUnit.fromKey(it[com.calindora.follow.Preferences.KEY_DISTANCE_UNIT]),
-                speedUnit = SpeedUnit.fromKey(it[com.calindora.follow.Preferences.KEY_SPEED_UNIT]),
+                distanceUnit = DistanceUnit.fromKey(it[AppPreferences.KEY_DISTANCE_UNIT]),
+                speedUnit = SpeedUnit.fromKey(it[AppPreferences.KEY_SPEED_UNIT]),
             )
           }
           .distinctUntilChanged()

@@ -73,20 +73,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
       _uiState.update {
         it.copy(
             serviceUrl =
-                initialPrefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL,
-            deviceKey = initialPrefs[Preferences.KEY_DEVICE_KEY].orEmpty(),
+                initialPrefs[AppPreferences.KEY_SERVICE_URL] ?: AppPreferences.DEFAULT_SERVICE_URL,
+            deviceKey = initialPrefs[AppPreferences.KEY_DEVICE_KEY].orEmpty(),
             deviceSecret = initialSecret,
-            distanceUnit = DistanceUnit.fromKey(initialPrefs[Preferences.KEY_DISTANCE_UNIT]),
-            speedUnit = SpeedUnit.fromKey(initialPrefs[Preferences.KEY_SPEED_UNIT]),
-            isCredentialBlocked = initialPrefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true,
-            consecutiveAuthFailures = initialPrefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
+            distanceUnit = DistanceUnit.fromKey(initialPrefs[AppPreferences.KEY_DISTANCE_UNIT]),
+            speedUnit = SpeedUnit.fromKey(initialPrefs[AppPreferences.KEY_SPEED_UNIT]),
+            isCredentialBlocked = initialPrefs[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true,
+            consecutiveAuthFailures =
+                initialPrefs[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
             isLoading = false,
         )
       }
 
       // Persist the default service URL on first run.
-      if (!initialPrefs.contains(Preferences.KEY_SERVICE_URL)) {
-        settingsDataStore.edit { it[Preferences.KEY_SERVICE_URL] = Preferences.DEFAULT_SERVICE_URL }
+      if (!initialPrefs.contains(AppPreferences.KEY_SERVICE_URL)) {
+        settingsDataStore.edit {
+          it[AppPreferences.KEY_SERVICE_URL] = AppPreferences.DEFAULT_SERVICE_URL
+        }
       }
 
       startRuntimeStateObserver()
@@ -116,7 +119,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { url ->
-            settingsDataStore.edit { it[Preferences.KEY_SERVICE_URL] = url }
+            settingsDataStore.edit { it[AppPreferences.KEY_SERVICE_URL] = url }
             _savedEvents.tryEmit(Unit)
           }
     }
@@ -128,7 +131,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .drop(1)
           .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
           .collect { key ->
-            settingsDataStore.edit { it[Preferences.KEY_DEVICE_KEY] = key }
+            settingsDataStore.edit { it[AppPreferences.KEY_DEVICE_KEY] = key }
             _savedEvents.tryEmit(Unit)
           }
     }
@@ -151,7 +154,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .distinctUntilChanged()
           .drop(1)
           .collect { unit ->
-            settingsDataStore.edit { it[Preferences.KEY_DISTANCE_UNIT] = unit.name }
+            settingsDataStore.edit { it[AppPreferences.KEY_DISTANCE_UNIT] = unit.name }
             _savedEvents.tryEmit(Unit)
           }
     }
@@ -162,7 +165,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
           .distinctUntilChanged()
           .drop(1)
           .collect { unit ->
-            settingsDataStore.edit { it[Preferences.KEY_SPEED_UNIT] = unit.name }
+            settingsDataStore.edit { it[AppPreferences.KEY_SPEED_UNIT] = unit.name }
             _savedEvents.tryEmit(Unit)
           }
     }
@@ -287,8 +290,8 @@ class SettingsRepository(
   suspend fun resetCredentialBlock(): Result<Unit> =
       runCatching {
             settingsDataStore.edit {
-              it[Preferences.KEY_SUBMISSIONS_BLOCKED] = false
-              it[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0
+              it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = false
+              it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0
             }
 
             WorkManager.getInstance(context)
