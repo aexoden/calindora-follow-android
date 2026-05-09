@@ -27,6 +27,18 @@ private const val TINK_KEYSET_PREFS = "follow_keyset_prefs"
 private const val MASTER_KEY_URI = "android-keystore://follow_master_key"
 
 /**
+ * Read/write access to the device secret. Implementations may persist plaintext, ciphertext, or
+ * both; consumers don't care. Extracted so tests can substitute an in-memory fake.
+ */
+interface SecretStore {
+  suspend fun migrateFromLegacyIfNeeded()
+
+  suspend fun get(): String?
+
+  suspend fun set(value: String)
+}
+
+/**
  * Tink-encrypted storage for the device secret.
  *
  * Wraps a regular preferences DataSTore. The plaintext is encrypted with AES-GCM via a Tink keyset
@@ -37,7 +49,7 @@ private const val MASTER_KEY_URI = "android-keystore://follow_master_key"
  * been destroyed (e.g. after a full backup restore) or the ciphertext is corrupted, the user
  * re-enters the secret in Settings rather than the app crashing on read.
  */
-class EncryptedSecretStore(context: Context) {
+class EncryptedSecretStore(context: Context) : SecretStore {
   private val appContext = context.applicationContext
   private val dataStore: DataStore<Preferences> = appContext.encryptedSecretDataStore
 
@@ -63,7 +75,7 @@ class EncryptedSecretStore(context: Context) {
    * We do this explicitly rather than via a `produceMigrations` callback so failure surfaces in
    * logs and can be retried, rather than corrupting the DataStore file.
    */
-  suspend fun migrateFromLegacyIfNeeded() {
+  override suspend fun migrateFromLegacyIfNeeded() {
     val alreadyMigrated =
         try {
           dataStore.data.first().contains(ENCRYPTED_SECRET_KEY)
@@ -87,10 +99,10 @@ class EncryptedSecretStore(context: Context) {
     }
   }
 
-  suspend fun get(): String? =
+  override suspend fun get(): String? =
       withContext(Dispatchers.IO) { decrypt(dataStore.data.first()[ENCRYPTED_SECRET_KEY]) }
 
-  suspend fun set(value: String) {
+  override suspend fun set(value: String) {
     withContext(Dispatchers.IO) {
       val ciphertext = encrypt(value)
       dataStore.edit { it[ENCRYPTED_SECRET_KEY] = ciphertext }

@@ -79,23 +79,25 @@ data class CredentialStatus(
  * underlying preference keys changes, with `distinctUntilChanged` semantics.
  */
 val Context.credentialStatusFlow: Flow<CredentialStatus>
-  get() =
-      settingsDataStore.data
-          .catch { e ->
-            if (e is IOException) {
-              Log.w("Preferences", "credentialStatusFlow read failed; emitting defaults", e)
-              emit(emptyPreferences())
-            } else {
-              throw e
-            }
+  get() = credentialStatusFlow(settingsDataStore)
+
+internal fun credentialStatusFlow(dataStore: DataStore<Preferences>): Flow<CredentialStatus> =
+    dataStore.data
+        .catch { e ->
+          if (e is IOException) {
+            Log.w("Preferences", "credentialStatusFlow read failed; emitting defaults", e)
+            emit(emptyPreferences())
+          } else {
+            throw e
           }
-          .map {
-            CredentialStatus(
-                isBlocked = it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true,
-                consecutiveAuthFailures = it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
-            )
-          }
-          .distinctUntilChanged()
+        }
+        .map {
+          CredentialStatus(
+              isBlocked = it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true,
+              consecutiveAuthFailures = it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
+          )
+        }
+        .distinctUntilChanged()
 
 /** Snapshot of the user's display unit choices, derived from [settingsDataStore]. */
 data class DisplayPreferences(
@@ -113,20 +115,22 @@ data class DisplayPreferences(
 
 /** Live [DisplayPreferences] view of [settingsDataStore]. */
 val Context.displayPreferencesFlow: Flow<DisplayPreferences>
-  get() =
-      settingsDataStore.data
-          .catch { e ->
-            if (e is IOException) {
-              Log.w("Preferences", "displayPreferencesFlow read failed; emitting defaults", e)
-              emit(emptyPreferences())
-            } else {
-              throw e
-            }
+  get() = displayPreferencesFlow(settingsDataStore)
+
+internal fun displayPreferencesFlow(dataStore: DataStore<Preferences>): Flow<DisplayPreferences> =
+    dataStore.data
+        .catch { e ->
+          if (e is IOException) {
+            Log.w("Preferences", "displayPreferencesFlow read failed; emitting defaults", e)
+            emit(emptyPreferences())
+          } else {
+            throw e
           }
-          .map {
-            DisplayPreferences(
-                distanceUnit = DistanceUnit.fromKey(it[AppPreferences.KEY_DISTANCE_UNIT]),
-                speedUnit = SpeedUnit.fromKey(it[AppPreferences.KEY_SPEED_UNIT]),
-            )
-          }
-          .distinctUntilChanged()
+        }
+        .map {
+          DisplayPreferences(
+              distanceUnit = DistanceUnit.fromKey(it[AppPreferences.KEY_DISTANCE_UNIT]),
+              speedUnit = SpeedUnit.fromKey(it[AppPreferences.KEY_SPEED_UNIT]),
+          )
+        }
+        .distinctUntilChanged()

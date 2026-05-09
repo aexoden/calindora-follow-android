@@ -58,9 +58,9 @@ data class SettingsUiState(
 class SettingsViewModel(
     private val locationReportDao: LocationReportDao,
     private val settingsDataStore: DataStore<Preferences>,
-    private val encryptedSecretStore: EncryptedSecretStore,
+    private val encryptedSecretStore: SecretStore,
     private val credentialStatusFlow: Flow<CredentialStatus>,
-    private val settingsRepository: SettingsRepository,
+    private val settingsRepository: SettingsActions,
 ) : ViewModel() {
   private val _uiState = MutableStateFlow(SettingsUiState())
   val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
@@ -321,6 +321,20 @@ class SettingsViewModel(
   }
 }
 
+/**
+ * Settings-screen actions that touch storage, WorkManager, and notifications. Extracted so tests
+ * can substitute an in-memory fake without constructing a real [WorkManager].
+ */
+interface SettingsActions {
+  suspend fun resetCredentialBlock(): Result<Unit>
+
+  suspend fun retryFailedReports(): Result<Unit>
+
+  suspend fun exportFailedReports(): Result<Unit>
+
+  suspend fun deleteFailedReports(): Result<Unit>
+}
+
 /** Repository to handle settings-related data operations */
 class SettingsRepository(
     private val application: Application,
@@ -328,8 +342,8 @@ class SettingsRepository(
     private val settingsDataStore: DataStore<Preferences>,
     private val workManager: WorkManager,
     private val notificationManager: NotificationManager,
-) {
-  suspend fun resetCredentialBlock(): Result<Unit> =
+) : SettingsActions {
+  override suspend fun resetCredentialBlock(): Result<Unit> =
       runCatching {
             settingsDataStore.edit {
               it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = false
@@ -347,7 +361,7 @@ class SettingsRepository(
           }
           .onFailure { Log.w(TAG, "Failed to reset credential block", it) }
 
-  suspend fun retryFailedReports(): Result<Unit> =
+  override suspend fun retryFailedReports(): Result<Unit> =
       runCatching<Unit> {
             locationReportDao.retryPermanentlyFailedReports()
 
@@ -359,13 +373,13 @@ class SettingsRepository(
           }
           .onFailure { Log.w(TAG, "Failed to retry failed reports", it) }
 
-  suspend fun exportFailedReports(): Result<Unit> =
+  override suspend fun exportFailedReports(): Result<Unit> =
       SubmissionWorker.exportFailedReports(
           locationReportDao = locationReportDao,
           logsDir = application.getExternalFilesDir("logs"),
       )
 
-  suspend fun deleteFailedReports(): Result<Unit> =
+  override suspend fun deleteFailedReports(): Result<Unit> =
       runCatching { locationReportDao.deletePermanentlyFailedReports() }
           .onFailure { Log.w(TAG, "Failed to delete failed reports", it) }
 

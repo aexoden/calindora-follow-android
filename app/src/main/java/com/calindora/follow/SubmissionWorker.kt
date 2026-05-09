@@ -415,46 +415,46 @@ class SubmissionWorker(
       SubmissionResult.TransientError(-1, e.message ?: "Network error")
     }
   }
+}
 
-  private fun mapResponseToResult(response: Response<Unit>): SubmissionResult {
-    val code = response.code()
-    if (code == HttpURLConnection.HTTP_CREATED) return SubmissionResult.Success
+internal fun mapResponseToResult(response: Response<Unit>): SubmissionResult {
+  val code = response.code()
+  if (code == HttpURLConnection.HTTP_CREATED) return SubmissionResult.Success
 
-    // `errorBody().string()` consumes and closes the body, calling it once up-front guarantees we
-    // don't leak a connection on branches that don't otherwise read it.
-    val errorBody = response.errorBody()?.use { it.string() }.orEmpty()
+  // `errorBody().string()` consumes and closes the body, calling it once up-front guarantees we
+  // don't leak a connection on branches that don't otherwise read it.
+  val errorBody = response.errorBody()?.use { it.string() }.orEmpty()
 
-    return when (code) {
-      HttpURLConnection.HTTP_UNAUTHORIZED -> {
-        // The v1 API returns 401 for both an incorrect secret (a configuration issue) and an
-        // invalid signature (a client/server bug). The server's actual error body is "The provided
-        // signature was invalid" in both cases, and it has no way to distinguish them, so we can't
-        // route likely bugs to PermanentError reliably. Treat every 401 as a configuration error; a
-        // future v2 API should split these into distinct responses.
-        SubmissionResult.ConfigurationError(code, errorBody.ifEmpty { "Unauthorized" })
-      }
+  return when (code) {
+    HttpURLConnection.HTTP_UNAUTHORIZED -> {
+      // The v1 API returns 401 for both an incorrect secret (a configuration issue) and an
+      // invalid signature (a client/server bug). The server's actual error body is "The provided
+      // signature was invalid" in both cases, and it has no way to distinguish them, so we can't
+      // route likely bugs to PermanentError reliably. Treat every 401 as a configuration error; a
+      // future v2 API should split these into distinct responses.
+      SubmissionResult.ConfigurationError(code, errorBody.ifEmpty { "Unauthorized" })
+    }
 
-      HttpURLConnection.HTTP_NOT_FOUND -> {
-        // Unknown device key or an outright incorrect service URL. No report will succeed until the
-        // user fixes the configuration.
-        SubmissionResult.ConfigurationError(code, "Unknown device key")
-      }
+    HttpURLConnection.HTTP_NOT_FOUND -> {
+      // Unknown device key or an outright incorrect service URL. No report will succeed until the
+      // user fixes the configuration.
+      SubmissionResult.ConfigurationError(code, "Unknown device key")
+    }
 
-      HttpURLConnection.HTTP_BAD_REQUEST,
-      HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
-      422 -> {
-        SubmissionResult.PermanentError(code, errorBody.ifEmpty { "Client error $code" })
-      }
+    HttpURLConnection.HTTP_BAD_REQUEST,
+    HttpURLConnection.HTTP_ENTITY_TOO_LARGE,
+    422 -> {
+      SubmissionResult.PermanentError(code, errorBody.ifEmpty { "Client error $code" })
+    }
 
-      HttpURLConnection.HTTP_CLIENT_TIMEOUT,
-      429,
-      in 500..599 -> {
-        SubmissionResult.TransientError(code, "Server error")
-      }
+    HttpURLConnection.HTTP_CLIENT_TIMEOUT,
+    429,
+    in 500..599 -> {
+      SubmissionResult.TransientError(code, "Server error")
+    }
 
-      else -> {
-        SubmissionResult.TransientError(code, "Unexpected error")
-      }
+    else -> {
+      SubmissionResult.TransientError(code, "Unexpected error")
     }
   }
 }

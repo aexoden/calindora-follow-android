@@ -161,6 +161,12 @@ android {
 
   sourceSets { getByName("androidTest").assets.directories += "$projectDir/schemas" }
 
+  testOptions {
+    // Stub Android framework calls (e.g. `android.util.Log`) to return defaults in JVM unit tests
+    // instead of throwing. Lets production code that logs through `Log.w` run uninstrumented.
+    unitTests { isReturnDefaultValues = true }
+  }
+
   buildFeatures {
     buildConfig = true
     compose = true
@@ -200,6 +206,7 @@ dependencies {
   implementation(libs.tink.android)
   ksp(libs.androidx.room.compiler)
   testImplementation(libs.junit)
+  testImplementation(libs.kotlinx.coroutines.test)
   androidTestImplementation(libs.androidx.room.testing)
   androidTestImplementation(libs.androidx.test.ext.junit)
   androidTestImplementation(libs.androidx.test.espresso.core)
