@@ -50,6 +50,7 @@ class FollowService : Service() {
 
   private val serviceScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
   private val locationReportDao by lazy { AppDatabase.getInstance(this).locationReportDao() }
+  private val locationManager by lazy { getSystemService(LOCATION_SERVICE) as LocationManager? }
 
   private var nmeaLog: BufferedWriter? = null
 
@@ -181,8 +182,6 @@ class FollowService : Service() {
   }
 
   private fun startLocationUpdates() {
-    val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
-
     if (
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED
@@ -197,7 +196,6 @@ class FollowService : Service() {
   }
 
   private fun stopLocationUpdates() {
-    val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
     locationManager?.removeUpdates(locationListener)
   }
 
@@ -205,8 +203,6 @@ class FollowService : Service() {
     if (!prepareLog()) {
       return false
     }
-
-    val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
 
     if (
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -219,7 +215,6 @@ class FollowService : Service() {
   }
 
   private fun stopLogging() {
-    val locationManager = getSystemService(LOCATION_SERVICE) as LocationManager?
     locationManager?.removeNmeaListener(nmeaListener)
     nmeaLog?.close()
     nmeaLog = null
