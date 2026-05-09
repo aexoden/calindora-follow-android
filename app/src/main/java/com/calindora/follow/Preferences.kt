@@ -1,14 +1,18 @@
 package com.calindora.follow
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.SharedPreferencesMigration
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import java.io.IOException
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
@@ -77,6 +81,14 @@ data class CredentialStatus(
 val Context.credentialStatusFlow: Flow<CredentialStatus>
   get() =
       settingsDataStore.data
+          .catch { e ->
+            if (e is IOException) {
+              Log.w("Preferences", "credentialStatusFlow read failed; emitting defaults", e)
+              emit(emptyPreferences())
+            } else {
+              throw e
+            }
+          }
           .map {
             CredentialStatus(
                 isBlocked = it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true,
@@ -103,6 +115,14 @@ data class DisplayPreferences(
 val Context.displayPreferencesFlow: Flow<DisplayPreferences>
   get() =
       settingsDataStore.data
+          .catch { e ->
+            if (e is IOException) {
+              Log.w("Preferences", "displayPreferencesFlow read failed; emitting defaults", e)
+              emit(emptyPreferences())
+            } else {
+              throw e
+            }
+          }
           .map {
             DisplayPreferences(
                 distanceUnit = DistanceUnit.fromKey(it[AppPreferences.KEY_DISTANCE_UNIT]),
