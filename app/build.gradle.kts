@@ -9,16 +9,16 @@ plugins {
   alias(libs.plugins.ksp)
 }
 
-val keystoreProperties =
-    Properties().apply {
-      val file = rootProject.file("keystore.properties")
-      if (file.exists()) {
-        file.inputStream().use { load(it) }
-      }
-    }
+val keystoreProperties: Provider<Properties> =
+    providers
+        .fileContents(rootProject.layout.projectDirectory.file("keystore.properties"))
+        .asText
+        .map { contents -> Properties().apply { load(contents.reader()) } }
 
-fun signingValue(propertyKey: String, envKey: String): String? =
-    keystoreProperties.getProperty(propertyKey) ?: System.getenv(envKey)
+fun signingValue(propertyKey: String, envKey: String): Provider<String> =
+    keystoreProperties
+        .flatMap { props -> providers.provider { props.getProperty(propertyKey) } }
+        .orElse(providers.environmentVariable(envKey))
 
 /** Reads the trimmed standard output of a `git` invocation as a [Provider]. */
 abstract class GitCommandValueSource : ValueSource<String, GitCommandValueSource.Parameters> {
@@ -81,10 +81,10 @@ android {
 
   signingConfigs {
     create("release") {
-      val store = signingValue("storeFile", "FOLLOW_KEYSTORE_PATH")
-      val storePass = signingValue("storePassword", "FOLLOW_KEYSTORE_PASSWORD")
-      val alias = signingValue("keyAlias", "FOLLOW_KEY_ALIAS")
-      val keyPass = signingValue("keyPassword", "FOLLOW_KEY_PASSWORD")
+      val store = signingValue("storeFile", "FOLLOW_KEYSTORE_PATH").orNull
+      val storePass = signingValue("storePassword", "FOLLOW_KEYSTORE_PASSWORD").orNull
+      val alias = signingValue("keyAlias", "FOLLOW_KEY_ALIAS").orNull
+      val keyPass = signingValue("keyPassword", "FOLLOW_KEY_PASSWORD").orNull
 
       if (store != null && storePass != null && alias != null && keyPass != null) {
         storeFile = file(store)
