@@ -20,21 +20,50 @@ val keystoreProperties =
 fun signingValue(propertyKey: String, envKey: String): String? =
     keystoreProperties.getProperty(propertyKey) ?: System.getenv(envKey)
 
-fun runGitCommand(vararg args: String): String? {
-  return try {
+/** Reads the trimmed standard output of a `git` invocation as a [Provider]. */
+abstract class GitCommandValueSource : ValueSource<String, GitCommandValueSource.Parameters> {
+  interface Parameters : ValueSourceParameters {
+    val args: ListProperty<String>
+    val workingDir: DirectoryProperty
+  }
+
+  @get:Inject abstract val execOperations: ExecOperations
+
+  override fun obtain(): String? {
     val stdout = ByteArrayOutputStream()
-    val process =
-        ProcessBuilder(listOf("git") + args).directory(rootDir).redirectErrorStream(false).start()
-    process.inputStream.copyTo(stdout)
-    if (process.waitFor() == 0) stdout.toString(Charsets.UTF_8).trim().ifEmpty { null } else null
-  } catch (_: Exception) {
-    null
+    val stderr = ByteArrayOutputStream()
+
+    return try {
+      val result = execOperations.exec {
+        commandLine(listOf("git") + parameters.args.get())
+        workingDir = parameters.workingDir.asFile.get()
+        standardOutput = stdout
+        errorOutput = stderr
+        isIgnoreExitValue = true
+      }
+
+      if (result.exitValue == 0) {
+        stdout.toString(Charsets.UTF_8).trim().ifEmpty { null }
+      } else {
+        null
+      }
+    } catch (_: Exception) {
+      null
+    }
   }
 }
 
-val gitVersionName: String = runGitCommand("describe", "--tags", "--always", "--dirty") ?: "unknown"
+fun gitCommand(vararg args: String): Provider<String> =
+    providers.of(GitCommandValueSource::class.java) {
+      parameters.args.set(args.toList())
+      parameters.workingDir.set(rootProject.layout.projectDirectory)
+    }
 
-val gitCommitCount: Int = runGitCommand("rev-list", "--count", "HEAD")?.toIntOrNull() ?: 1
+val gitVersionName: Provider<String> =
+    gitCommand("describe", "--tags", "--always", "--dirty").orElse("unknown")
+
+val gitCommitCount: Provider<Int> =
+    gitCommand("rev-list", "--count", "HEAD").map { it.toIntOrNull() ?: 1 }.orElse(1)
 
 android {
   namespace = "com.calindora.follow"
@@ -44,8 +73,8 @@ android {
     applicationId = "com.calindora.follow"
     minSdk = 33
     targetSdk = 37
-    versionCode = gitCommitCount
-    versionName = gitVersionName
+    versionCode = gitCommitCount.get()
+    versionName = gitVersionName.get()
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
