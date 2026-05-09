@@ -24,6 +24,10 @@ object Preferences {
   val KEY_SERVICE_URL = stringPreferencesKey("preference_url")
   val KEY_DEVICE_KEY = stringPreferencesKey("preference_device_key")
 
+  // Display preferences
+  val KEY_DISTANCE_UNIT = stringPreferencesKey("preference_distance_unit")
+  val KEY_SPEED_UNIT = stringPreferencesKey("preference_speed_unit")
+
   // Runtime state
   val KEY_SUBMISSIONS_BLOCKED = booleanPreferencesKey("submissions_blocked_credential_issue")
   val KEY_CONSECUTIVE_AUTH_FAILURES = intPreferencesKey("consecutive_auth_failures")
@@ -78,6 +82,33 @@ val Context.credentialStatusFlow: Flow<CredentialStatus>
                 isBlocked = it[com.calindora.follow.Preferences.KEY_SUBMISSIONS_BLOCKED] == true,
                 consecutiveAuthFailures =
                     it[com.calindora.follow.Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
+            )
+          }
+          .distinctUntilChanged()
+
+/** Snapshot of the user's display unit choices, derived from [settingsDataStore]. */
+data class DisplayPreferences(
+    val distanceUnit: DistanceUnit,
+    val speedUnit: SpeedUnit,
+) {
+  companion object {
+    val DEFAULT =
+        DisplayPreferences(
+            distanceUnit = DistanceUnit.DEFAULT,
+            speedUnit = SpeedUnit.DEFAULT,
+        )
+  }
+}
+
+/** Live [DisplayPreferences] view of [settingsDataStore]. */
+val Context.displayPreferencesFlow: Flow<DisplayPreferences>
+  get() =
+      settingsDataStore.data
+          .map {
+            DisplayPreferences(
+                distanceUnit =
+                    DistanceUnit.fromKey(it[com.calindora.follow.Preferences.KEY_DISTANCE_UNIT]),
+                speedUnit = SpeedUnit.fromKey(it[com.calindora.follow.Preferences.KEY_SPEED_UNIT]),
             )
           }
           .distinctUntilChanged()

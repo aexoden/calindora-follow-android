@@ -30,7 +30,11 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonColors
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -203,6 +207,38 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                       autoCorrectEnabled = false,
                   ),
               keyboardActions = KeyboardActions(onDone = { keyboardController?.hide() }),
+          )
+        }
+      }
+
+      Spacer(modifier = Modifier.height(24.dp))
+
+      Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp)) {
+          Text(
+              text = stringResource(R.string.preference_category_display),
+              style = MaterialTheme.typography.titleMedium,
+              color = MaterialTheme.colorScheme.primary,
+          )
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          SettingsDropdownItem(
+              label = stringResource(R.string.preference_distance_unit),
+              selected = uiState.distanceUnit,
+              options = DistanceUnit.entries,
+              optionLabel = { stringResource(it.labelRes) },
+              onSelected = viewModel::updateDistanceUnit,
+          )
+
+          Spacer(modifier = Modifier.height(12.dp))
+
+          SettingsDropdownItem(
+              label = stringResource(R.string.preference_speed_unit),
+              selected = uiState.speedUnit,
+              options = SpeedUnit.entries,
+              optionLabel = { stringResource(it.labelRes) },
+              onSelected = viewModel::updateSpeedUnit,
           )
         }
       }
@@ -492,4 +528,46 @@ fun SettingsTextFieldItem(
       isError = error != null,
       supportingText = error?.let { { Text(it) } },
   )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun <T> SettingsDropdownItem(
+    label: String,
+    selected: T,
+    options: List<T>,
+    optionLabel: @Composable (T) -> String,
+    onSelected: (T) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+  var expanded by remember { mutableStateOf(false) }
+
+  ExposedDropdownMenuBox(
+      expanded = expanded,
+      onExpandedChange = { expanded = !expanded },
+      modifier = modifier,
+  ) {
+    OutlinedTextField(
+        value = optionLabel(selected),
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+        modifier =
+            Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = true)
+                .fillMaxWidth(),
+        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+    )
+    ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+      options.forEach { option ->
+        DropdownMenuItem(
+            text = { Text(optionLabel(option)) },
+            onClick = {
+              onSelected(option)
+              expanded = false
+            },
+        )
+      }
+    }
+  }
 }

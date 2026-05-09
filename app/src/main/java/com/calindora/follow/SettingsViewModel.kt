@@ -29,6 +29,8 @@ data class SettingsUiState(
     val serviceUrl: String = "",
     val deviceKey: String = "",
     val deviceSecret: String = "",
+    val distanceUnit: DistanceUnit = DistanceUnit.DEFAULT,
+    val speedUnit: SpeedUnit = SpeedUnit.DEFAULT,
     val isCredentialBlocked: Boolean = false,
     val consecutiveAuthFailures: Int = 0,
     val failedReportCount: Int = 0,
@@ -75,6 +77,8 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
                 initialPrefs[Preferences.KEY_SERVICE_URL] ?: Preferences.DEFAULT_SERVICE_URL,
             deviceKey = initialPrefs[Preferences.KEY_DEVICE_KEY].orEmpty(),
             deviceSecret = initialSecret,
+            distanceUnit = DistanceUnit.fromKey(initialPrefs[Preferences.KEY_DISTANCE_UNIT]),
+            speedUnit = SpeedUnit.fromKey(initialPrefs[Preferences.KEY_SPEED_UNIT]),
             isCredentialBlocked = initialPrefs[Preferences.KEY_SUBMISSIONS_BLOCKED] == true,
             consecutiveAuthFailures = initialPrefs[Preferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0,
             isLoading = false,
@@ -141,6 +145,28 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
             _savedEvents.tryEmit(Unit)
           }
     }
+
+    viewModelScope.launch {
+      _uiState
+          .map { it.distanceUnit }
+          .distinctUntilChanged()
+          .drop(1)
+          .collect { unit ->
+            settingsDataStore.edit { it[Preferences.KEY_DISTANCE_UNIT] = unit.name }
+            _savedEvents.tryEmit(Unit)
+          }
+    }
+
+    viewModelScope.launch {
+      _uiState
+          .map { it.speedUnit }
+          .distinctUntilChanged()
+          .drop(1)
+          .collect { unit ->
+            settingsDataStore.edit { it[Preferences.KEY_SPEED_UNIT] = unit.name }
+            _savedEvents.tryEmit(Unit)
+          }
+    }
   }
 
   private fun startFailedReportCountCollector() {
@@ -158,6 +184,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
   fun updateDeviceKey(key: String) = _uiState.update { it.copy(deviceKey = key) }
 
   fun updateDeviceSecret(secret: String) = _uiState.update { it.copy(deviceSecret = secret) }
+
+  fun updateDistanceUnit(unit: DistanceUnit) = _uiState.update { it.copy(distanceUnit = unit) }
+
+  fun updateSpeedUnit(unit: SpeedUnit) = _uiState.update { it.copy(speedUnit = unit) }
 
   // Dialog management
   fun showResetDialog() = _uiState.update { it.copy(showResetDialog = true) }

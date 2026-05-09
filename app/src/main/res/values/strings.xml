@@ -64,14 +64,17 @@
   <string name="notification_text">Sharing Your Location</string>
   <string name="notification_title">Calindora Follow</string>
   <string name="preference_category_connection">Connection</string>
+  <string name="preference_category_display">Display</string>
   <string name="preference_category_status">Status</string>
   <string name="preference_credential_status">Credential Status</string>
   <string name="preference_credential_status_blocked">Authentication blocked due to multiple failures</string>
   <string name="preference_credential_status_ok">Authentication working normally</string>
   <string name="preference_device_key">Device Key</string>
   <string name="preference_device_secret">Device Secret</string>
+  <string name="preference_distance_unit">Distance unit (altitude, accuracy)</string>
   <string name="preference_reset_credential_block">Reset Authentication Block</string>
   <string name="preference_reset_credential_block_summary">Clear the authentication failure status and retry submissions</string>
+  <string name="preference_speed_unit">Speed unit</string>
   <string name="preference_url">Service URL</string>
   <string name="stop_reason_app_standby">App standby</string>
   <string name="stop_reason_background_restriction">Background restriction</string>
@@ -108,4 +111,16 @@
   <string name="toast_logging_start_failed">Could not start logging. Check that external storage is available.</string>
   <string name="toast_notifications_denied">Notifications disabled. The service will still run reliably, but you won\'t see credential warnings if authentication fails.</string>
   <string name="toast_retry_failure">Failed to retry reports</string>
+  <string name="unit_feet">Feet</string>
+  <string name="unit_feet_abbr">ft</string>
+  <string name="unit_kilometers_per_hour">Kilometers per hour</string>
+  <string name="unit_kilometers_per_hour_abbr">km/h</string>
+  <string name="unit_knots">Knots</string>
+  <string name="unit_knots_abbr">kn</string>
+  <string name="unit_meters">Meters</string>
+  <string name="unit_meters_abbr">m</string>
+  <string name="unit_meters_per_second">Meters per second</string>
+  <string name="unit_meters_per_second_abbr">m/s</string>
+  <string name="unit_miles_per_hour">Miles per hour</string>
+  <string name="unit_miles_per_hour_abbr">mph</string>
 </resources>

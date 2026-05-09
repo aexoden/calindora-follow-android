@@ -67,8 +67,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
-private const val FEET_PER_METER = 3.2808399
-
 private val DISPLAY_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault())
 
@@ -132,12 +130,15 @@ class MainActivity : ComponentActivity() {
     checkNotificationPermission()
 
     val credentialFlow = credentialStatusFlow
+    val displayFlow = displayPreferencesFlow
 
     setContent {
       CalindoraFollowTheme {
         val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
         val credentialStatus by
             credentialFlow.collectAsStateWithLifecycle(initialValue = CredentialStatus.INITIAL)
+        val displayPreferences by
+            displayFlow.collectAsStateWithLifecycle(initialValue = DisplayPreferences.DEFAULT)
         val syncWorkInfo by
             locationViewModel.syncWorkInfo.collectAsStateWithLifecycle(initialValue = null)
         val isBound = serviceState != null
@@ -165,6 +166,7 @@ class MainActivity : ComponentActivity() {
             isLogging = serviceState?.logging == true,
             locationData = serviceState?.location,
             credentialStatus = credentialStatus,
+            displayPreferences = displayPreferences,
             showLocationSettingsDialog = showLocationSettingsDialog,
             onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
             onOpenAppSettings = {
@@ -308,6 +310,7 @@ fun MainScreen(
     isLogging: Boolean,
     locationData: Location?,
     credentialStatus: CredentialStatus,
+    displayPreferences: DisplayPreferences,
     showLocationSettingsDialog: Boolean,
     onDismissLocationSettingsDialog: () -> Unit,
     onOpenAppSettings: () -> Unit,
@@ -341,6 +344,7 @@ fun MainScreen(
           lastSubmissionTime = lastSubmissionTime,
           queueSize = queueSize,
           syncWorkInfo = if (isDebugEnabled) null else syncWorkInfo,
+          displayPreferences = displayPreferences,
       )
 
       Spacer(modifier = Modifier.height(8.dp))
@@ -388,11 +392,14 @@ fun LocationStatusSection(
     lastSubmissionTime: Long,
     queueSize: Int,
     syncWorkInfo: WorkInfo?,
+    displayPreferences: DisplayPreferences,
 ) {
   Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
     Column(modifier = Modifier.padding(16.dp)) {
       if (locationData != null) {
         val locale = LocalLocale.current.platformLocale
+        val distanceAbbr = stringResource(displayPreferences.distanceUnit.abbreviationRes)
+        val speedAbbr = stringResource(displayPreferences.speedUnit.abbreviationRes)
 
         StatusRow(
             label = stringResource(R.string.label_gps_time),
@@ -408,15 +415,22 @@ fun LocationStatusSection(
         )
         StatusRow(
             label = stringResource(R.string.label_altitude),
-            value = String.format(locale, "%.5f ft", locationData.altitude * FEET_PER_METER),
+            value =
+                String.format(
+                    locale,
+                    "%.5f %s",
+                    displayPreferences.distanceUnit.fromMeters(locationData.altitude),
+                    distanceAbbr,
+                ),
         )
         StatusRow(
             label = stringResource(R.string.label_speed),
             value =
                 String.format(
                     locale,
-                    "%.2f MPH",
-                    locationData.speed * FEET_PER_METER * 60.0 * 60.0 / 5280.0,
+                    "%.2f %s",
+                    displayPreferences.speedUnit.fromMetersPerSecond(locationData.speed.toDouble()),
+                    speedAbbr,
                 ),
         )
         StatusRow(
@@ -425,7 +439,13 @@ fun LocationStatusSection(
         )
         StatusRow(
             label = stringResource(R.string.label_accuracy),
-            value = String.format(locale, "%.2f ft", locationData.accuracy * FEET_PER_METER),
+            value =
+                String.format(
+                    locale,
+                    "%.2f %s",
+                    displayPreferences.distanceUnit.fromMeters(locationData.accuracy.toDouble()),
+                    distanceAbbr,
+                ),
         )
       } else {
         Text(stringResource(R.string.label_waiting_for_location))
