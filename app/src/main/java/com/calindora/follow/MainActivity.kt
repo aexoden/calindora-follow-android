@@ -418,7 +418,7 @@ fun LocationStatusSection(
             value =
                 String.format(
                     locale,
-                    "%.5f %s",
+                    "%.2f %s",
                     displayPreferences.distanceUnit.fromMeters(locationData.altitude),
                     distanceAbbr,
                 ),
