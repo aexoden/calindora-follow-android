@@ -187,42 +187,42 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
 
   override suspend fun doWork(): Result =
       withContext(Dispatchers.IO) {
-        // Idempotent; covers users who upgrade and have the worker fire before opening Settings.
-        encryptedSecretStore.migrateFromLegacyIfNeeded()
-
-        val initialPrefs = settingsDataStore.data.first()
-
-        if (initialPrefs[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true) {
-          Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
-          return@withContext Result.failure(
-              workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
-          )
-        }
-
-        val authFailureCount = initialPrefs[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
-        if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
-          settingsDataStore.edit { it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = true }
-          notifyCredentialIssue(authFailureCount)
-          return@withContext Result.failure(
-              workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
-          )
-        }
-
-        val submissionConfig =
-            when (val result = getSubmissionConfig()) {
-              is ConfigResult.Valid -> result.config
-              is ConfigResult.Invalid -> {
-                Log.w("SubmissionWorker", "Invalid configuration: ${result.reason}")
-                return@withContext Result.failure(
-                    workDataOf(
-                        OUTPUT_KEY_ERROR_REASON to ERROR_REASON_INVALID_CONFIG,
-                        OUTPUT_KEY_DETAILS to result.reason,
-                    )
-                )
-              }
-            }
-
         try {
+          // Idempotent; covers users who upgrade and have the worker fire before opening Settings.
+          encryptedSecretStore.migrateFromLegacyIfNeeded()
+
+          val initialPrefs = settingsDataStore.data.first()
+
+          if (initialPrefs[AppPreferences.KEY_SUBMISSIONS_BLOCKED] == true) {
+            Log.w("SubmissionWorker", "Submissions blocked due to credential issues")
+            return@withContext Result.failure(
+                workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
+            )
+          }
+
+          val authFailureCount = initialPrefs[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
+          if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
+            settingsDataStore.edit { it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = true }
+            notifyCredentialIssue(authFailureCount)
+            return@withContext Result.failure(
+                workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
+            )
+          }
+
+          val submissionConfig =
+              when (val result = getSubmissionConfig()) {
+                is ConfigResult.Valid -> result.config
+                is ConfigResult.Invalid -> {
+                  Log.w("SubmissionWorker", "Invalid configuration: ${result.reason}")
+                  return@withContext Result.failure(
+                      workDataOf(
+                          OUTPUT_KEY_ERROR_REASON to ERROR_REASON_INVALID_CONFIG,
+                          OUTPUT_KEY_DETAILS to result.reason,
+                      )
+                  )
+                }
+              }
+
           var reports = locationReportDao.getUnsubmittedReports(Config.Submission.MAX_BATCH_SIZE)
           var processedAllReports = true
           var continueSubmission = true
@@ -317,14 +317,14 @@ class SubmissionWorker(appContext: Context, workerParams: WorkerParameters) :
           val cutoff = System.currentTimeMillis() - Config.Retention.SUBMITTED_REPORT_TTL_MS
           locationReportDao.deleteOldSubmittedReports(cutoff)
 
-          return@withContext if (processedAllReports) {
+          if (processedAllReports) {
             Result.success(workDataOf(OUTPUT_KEY_SUBMISSION_TIME to System.currentTimeMillis()))
           } else {
             Result.retry()
           }
         } catch (e: Exception) {
-          Log.e("BatchSubmissionWorker", "Error submitting reports", e)
-          return@withContext Result.retry()
+          Log.e("SubmissionWorker", "Error during submission work", e)
+          Result.retry()
         }
       }
 

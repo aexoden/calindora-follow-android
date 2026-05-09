@@ -3,11 +3,14 @@ package com.calindora.follow
 import android.app.Application
 import android.content.Context
 import android.util.Log
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
+import java.io.IOException
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -66,9 +69,23 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
       // Migrate the legacy plaintext secret on first launch. Subsequent calls are no-ops.
       encryptedSecretStore.migrateFromLegacyIfNeeded()
 
-      // Load initial state synchronously before starting observers and save collectors.
-      val initialPrefs = settingsDataStore.data.first()
-      val initialSecret = encryptedSecretStore.get().orEmpty()
+      // Load initial state synchronously before starting observers and save collectors. If
+      // DataStore is transiently unreadable, fall back to defaults so the screen still opens; the
+      // runtime observers below will pick up a valid snapshot once a later read succeeds.
+      val initialPrefs: Preferences =
+          try {
+            settingsDataStore.data.first()
+          } catch (e: IOException) {
+            Log.w(TAG, "Failed to read settings DataStore; falling back to default", e)
+            emptyPreferences()
+          }
+      val initialSecret =
+          try {
+            encryptedSecretStore.get().orEmpty()
+          } catch (e: IOException) {
+            Log.w(TAG, "Failed to read device secret; falling back to empty", e)
+            ""
+          }
 
       _uiState.update {
         it.copy(
@@ -87,8 +104,12 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
       // Persist the default service URL on first run.
       if (!initialPrefs.contains(AppPreferences.KEY_SERVICE_URL)) {
-        settingsDataStore.edit {
-          it[AppPreferences.KEY_SERVICE_URL] = AppPreferences.DEFAULT_SERVICE_URL
+        try {
+          settingsDataStore.edit {
+            it[AppPreferences.KEY_SERVICE_URL] = AppPreferences.DEFAULT_SERVICE_URL
+          }
+        } catch (e: IOException) {
+          Log.w(TAG, "Failed to persist default service URL", e)
         }
       }
 
@@ -277,6 +298,10 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
         )
       }
     }
+  }
+
+  private companion object {
+    const val TAG = "SettingsViewModel"
   }
 }
 

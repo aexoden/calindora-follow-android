@@ -13,6 +13,7 @@ import com.google.crypto.tink.KeyTemplates
 import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
+import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -55,12 +56,22 @@ class EncryptedSecretStore(context: Context) {
    * Migrate a plaintext secret from legacy SharedPreferences if present and the encrypted store is
    * empty.
    *
-   * Call this from app startup before any consumer reads the secret. We do this explicitly rather
-   * than via a `produceMigrations` callback so failure surfaces loudly and can be retried, rather
-   * than corrupting the DataStore file.
+   * Call this from app startup before any consumer reads the secret. The call is idempotent and
+   * best-effort: if the DataStore read fails, we log and return so callers don't crash on a
+   * transient I/O error.
+   *
+   * We do this explicitly rather than via a `produceMigrations` callback so failure surfaces in
+   * logs and can be retried, rather than corrupting the DataStore file.
    */
   suspend fun migrateFromLegacyIfNeeded() {
-    if (dataStore.data.first().contains(ENCRYPTED_SECRET_KEY)) return
+    val alreadyMigrated =
+        try {
+          dataStore.data.first().contains(ENCRYPTED_SECRET_KEY)
+        } catch (e: IOException) {
+          Log.w("EncryptedSecretStore", "Failed to read encrypted store during migration", e)
+          return
+        }
+    if (alreadyMigrated) return
 
     withContext(Dispatchers.IO) {
       val legacyPrefs =
