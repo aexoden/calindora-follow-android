@@ -176,6 +176,13 @@ class LocationReportDaoTest {
   }
 
   @Test
+  fun getLastSubmissionTime_returnsZero_whenTableIsEmpty() = runBlocking {
+    // MAX() returns NULL on an empty table; the COALESCE in the query collapses that to 0
+    // so the Flow<Long> contract holds during the install-to-first-submission window.
+    assertEquals(0L, dao.getLastSubmissionTime().first())
+  }
+
+  @Test
   fun getUnsubmittedReportCount_matchesFilter() = runBlocking {
     dao.insert(report(timestamp = 100))
     dao.insert(report(timestamp = 200))
