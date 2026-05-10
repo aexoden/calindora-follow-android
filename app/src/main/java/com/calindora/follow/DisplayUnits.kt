@@ -37,7 +37,7 @@ enum class DistanceUnit(
 }
 
 enum class SpeedUnit(
-    @param:StringRes val labelRes: Int,
+    @StringRes val labelRes: Int,
     @param:StringRes val abbreviationRes: Int,
 ) {
   METERS_PER_SECOND(R.string.unit_meters_per_second, R.string.unit_meters_per_second_abbr),

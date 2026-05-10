@@ -30,16 +30,16 @@ jobs:
         uses: gradle/actions/setup-gradle@50e97c2cd7a37755bbfafc9c5b7cafaece252f6e # v6
 
       - name: Assemble debug APK
-        run: ./gradlew assembleDebug --no-configuration-cache
+        run: ./gradlew assembleDebug
 
       - name: Assemble unsigned release APK
-        run: ./gradlew assembleRelease  --no-configuration-cache
+        run: ./gradlew assembleRelease
 
       - name: Lint
-        run: ./gradlew lintDebug  --no-configuration-cache
+        run: ./gradlew lintDebug
 
       - name: Run tests
-        run: ./gradlew testDebugUnitTest  --no-configuration-cache
+        run: ./gradlew testDebugUnitTest
 
   instrumented-tests:
     name: Instrumented tests
@@ -72,4 +72,4 @@ jobs:
           api-level: 33
           arch: x86_64
           profile: pixel_6
-          script: ./gradlew connectedDebugAndroidTest  --no-configuration-cache
+          script: ./gradlew connectedDebugAndroidTest
