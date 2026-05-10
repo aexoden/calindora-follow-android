@@ -32,6 +32,7 @@ fun LocationStatusSection(
     lastSubmissionTime: Long,
     queueSize: Int,
     syncWorkInfo: WorkInfo?,
+    showNextSync: Boolean,
     displayPreferences: DisplayPreferences,
 ) {
   Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
@@ -101,7 +102,9 @@ fun LocationStatusSection(
           label = stringResource(R.string.label_submission_queue_size),
           value = queueSize.toString(),
       )
-      NextSyncStatusRow(workInfo = syncWorkInfo)
+      if (showNextSync) {
+        NextSyncStatusRow(workInfo = syncWorkInfo)
+      }
     }
   }
 }

@@ -150,7 +150,8 @@ fun MainScreen(
           locationData = state.locationData,
           lastSubmissionTime = state.lastSubmissionTime,
           queueSize = state.queueSize,
-          syncWorkInfo = if (isDebugEnabled) null else state.syncWorkInfo,
+          syncWorkInfo = state.syncWorkInfo,
+          showNextSync = !isDebugEnabled,
           displayPreferences = state.displayPreferences,
       )
 
