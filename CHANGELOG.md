@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-10
+
+This release focuses on UI improvements, code organization, and test coverage.
+
+### Added
+
+- Add additional tests.
+
+### Changed
+
+- Enable dynamic color and generate the fallback theme with Material Theme Builder.
+- Make the credential warning banner tappable.
+- Refactor the UI into per-component files.
+- Replace toasts with snackbars.
+- Require confirmation for destructive debug actions.
+
+### Fixed
+
+- Preserve debug section toggle across rotation.
+
 ## [0.2.0] - 2026-05-09
 
 ### Added
@@ -50,4 +70,6 @@ Initial tagged release of Calindora Follow for Android.
 
 [0.1.0]: https://github.com/aexoden/calindora-follow-android/releases/tag/v0.1.0
 
-[0.2.0]: https://github.com/aexoden/calindora-follow-android/releases/tag/v0.2.0
+[0.2.0]: https://github.com/aexoden/calindora-follow-android/compare/v0.1.0..v0.2.0
+
+[0.3.0]: https://github.com/aexoden/calindora-follow-android/compare/v0.2.0..v0.3.0
