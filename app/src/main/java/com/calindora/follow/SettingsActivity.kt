@@ -107,13 +107,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   }
 
   // Display snackbar messages for one-shot operations
-  LaunchedEffect(uiState.snackbarMessage) {
-    uiState.snackbarMessage?.let { msg ->
+  LaunchedEffect(snackbarHostState, viewModel) {
+    viewModel.snackbarEvents.collect { message ->
       snackbarHostState.showSnackbar(
-          message = msg.resolve(context),
+          message = message.resolve(context),
           duration = SnackbarDuration.Short,
       )
-      viewModel.clearSnackbarMessage()
     }
   }
 

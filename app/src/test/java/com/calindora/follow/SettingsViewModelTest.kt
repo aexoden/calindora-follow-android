@@ -23,8 +23,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -282,16 +280,17 @@ class SettingsViewModelTest {
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
 
+    val events = mutableListOf<UiText>()
+    val collector = launch { vm.snackbarEvents.toList(events) }
+    runCurrent()
+
     vm.showResetDialog()
     vm.resetCredentialBlock()
     advanceUntilIdle()
 
-    val state = vm.uiState.value
-    assertFalse(state.showResetDialog)
-    assertEquals(
-        UiText.Simple(R.string.message_credential_reset_success),
-        state.snackbarMessage,
-    )
+    assertFalse(vm.uiState.value.showResetDialog)
+    assertEquals(listOf(UiText.Simple(R.string.message_credential_reset_success)), events)
+    collector.cancel()
   }
 
   @Test
@@ -300,13 +299,15 @@ class SettingsViewModelTest {
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
 
+    val events = mutableListOf<UiText>()
+    val collector = launch { vm.snackbarEvents.toList(events) }
+    runCurrent()
+
     vm.resetCredentialBlock()
     advanceUntilIdle()
 
-    assertEquals(
-        UiText.Simple(R.string.message_credential_reset_failure),
-        vm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Simple(R.string.message_credential_reset_failure)), events)
+    collector.cancel()
   }
 
   @Test
@@ -316,13 +317,15 @@ class SettingsViewModelTest {
     val (vm, _) = newViewModel(dao = dao, actions = actions)
     advanceUntilIdle()
 
+    val events = mutableListOf<UiText>()
+    val collector = launch { vm.snackbarEvents.toList(events) }
+    runCurrent()
+
     vm.retryFailedReports()
     advanceUntilIdle()
 
-    assertEquals(
-        UiText.Plural(R.plurals.message_reports_queued_for_retry, 4),
-        vm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Plural(R.plurals.message_reports_queued_for_retry, 4)), events)
+    collector.cancel()
   }
 
   @Test
@@ -331,13 +334,15 @@ class SettingsViewModelTest {
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
 
+    val events = mutableListOf<UiText>()
+    val collector = launch { vm.snackbarEvents.toList(events) }
+    runCurrent()
+
     vm.retryFailedReports()
     advanceUntilIdle()
 
-    assertEquals(
-        UiText.Simple(R.string.message_retry_failure),
-        vm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Simple(R.string.message_retry_failure)), events)
+    collector.cancel()
   }
 
   @Test
@@ -346,23 +351,25 @@ class SettingsViewModelTest {
     val successActions = StubSettingsActions(exportResult = Result.success(Unit))
     val (successVm, _) = newViewModel(actions = successActions)
     advanceUntilIdle()
+    val successEvents = mutableListOf<UiText>()
+    val successCollector = launch { successVm.snackbarEvents.toList(successEvents) }
+    runCurrent()
     successVm.exportFailedReports()
     advanceUntilIdle()
-    assertEquals(
-        UiText.Simple(R.string.message_export_success),
-        successVm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Simple(R.string.message_export_success)), successEvents)
+    successCollector.cancel()
 
     // Failure
     val failureActions = StubSettingsActions(exportResult = Result.failure(RuntimeException()))
     val (failureVm, _) = newViewModel(actions = failureActions)
     advanceUntilIdle()
+    val failureEvents = mutableListOf<UiText>()
+    val failureCollector = launch { failureVm.snackbarEvents.toList(failureEvents) }
+    runCurrent()
     failureVm.exportFailedReports()
     advanceUntilIdle()
-    assertEquals(
-        UiText.Simple(R.string.message_export_failure),
-        failureVm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Simple(R.string.message_export_failure)), failureEvents)
+    failureCollector.cancel()
   }
 
   @Test
@@ -370,39 +377,27 @@ class SettingsViewModelTest {
     val successActions = StubSettingsActions(deleteResult = Result.success(Unit))
     val (successVm, _) = newViewModel(actions = successActions)
     advanceUntilIdle()
+    val successEvents = mutableListOf<UiText>()
+    val successCollector = launch { successVm.snackbarEvents.toList(successEvents) }
+    runCurrent()
     successVm.deleteFailedReports()
     advanceUntilIdle()
-    assertEquals(
-        UiText.Simple(R.string.message_delete_success),
-        successVm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Simple(R.string.message_delete_success)), successEvents)
+    successCollector.cancel()
 
     val failureActions = StubSettingsActions(deleteResult = Result.failure(RuntimeException()))
     val (failureVm, _) = newViewModel(actions = failureActions)
     advanceUntilIdle()
+    val failureEvents = mutableListOf<UiText>()
+    val failureCollector = launch { failureVm.snackbarEvents.toList(failureEvents) }
+    runCurrent()
     failureVm.deleteFailedReports()
     advanceUntilIdle()
-    assertEquals(
-        UiText.Simple(R.string.message_delete_failure),
-        failureVm.uiState.value.snackbarMessage,
-    )
+    assertEquals(listOf(UiText.Simple(R.string.message_delete_failure)), failureEvents)
+    failureCollector.cancel()
   }
 
-  @Test
-  fun `clearSnackbarMessage nulls the snackbarMessage`() = runTest {
-    val actions = StubSettingsActions(deleteResult = Result.success(Unit))
-    val (vm, _) = newViewModel(actions = actions)
-    advanceUntilIdle()
-
-    vm.deleteFailedReports()
-    advanceUntilIdle()
-    assertNotNull(vm.uiState.value.snackbarMessage)
-
-    vm.clearSnackbarMessage()
-    assertNull(vm.uiState.value.snackbarMessage)
-  }
-
-  // Construction helper
+  // Helpers
 
   /**
    * Construct a [SettingsViewModel] with default fakes, returning the VM together with the

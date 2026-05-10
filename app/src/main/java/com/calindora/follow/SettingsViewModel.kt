@@ -16,6 +16,7 @@ import androidx.work.ExistingWorkPolicy
 import androidx.work.WorkManager
 import java.io.IOException
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -28,6 +29,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -45,7 +47,6 @@ data class SettingsUiState(
     val showRetryDialog: Boolean = false,
     val showExportDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
-    val snackbarMessage: UiText? = null,
     val isLoading: Boolean = true,
 ) {
   /** Whether the "Reset credential block" action should be offered. */
@@ -67,6 +68,9 @@ class SettingsViewModel(
 
   private val _savedEvents = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
   val savedEvents: SharedFlow<Unit> = _savedEvents.asSharedFlow()
+
+  private val _snackbarEvents = Channel<UiText>(Channel.BUFFERED)
+  val snackbarEvents: Flow<UiText> = _snackbarEvents.receiveAsFlow()
 
   init {
     viewModelScope.launch {
@@ -233,23 +237,17 @@ class SettingsViewModel(
 
   fun dismissDeleteDialog() = _uiState.update { it.copy(showDeleteDialog = false) }
 
-  fun clearSnackbarMessage() = _uiState.update { it.copy(snackbarMessage = null) }
-
   // Action functions
   fun resetCredentialBlock() {
     viewModelScope.launch {
       val result = settingsRepository.resetCredentialBlock()
-
-      _uiState.update {
-        it.copy(
-            showResetDialog = false,
-            snackbarMessage =
-                UiText.Simple(
-                    if (result.isSuccess) R.string.message_credential_reset_success
-                    else R.string.message_credential_reset_failure
-                ),
-        )
-      }
+      _uiState.update { it.copy(showResetDialog = false) }
+      _snackbarEvents.send(
+          UiText.Simple(
+              if (result.isSuccess) R.string.message_credential_reset_success
+              else R.string.message_credential_reset_failure
+          ),
+      )
     }
   }
 
@@ -257,50 +255,37 @@ class SettingsViewModel(
     viewModelScope.launch {
       val count = _uiState.value.failedReportCount
       val result = settingsRepository.retryFailedReports()
-
-      _uiState.update {
-        it.copy(
-            showRetryDialog = false,
-            snackbarMessage =
-                if (result.isSuccess)
-                    UiText.Plural(R.plurals.message_reports_queued_for_retry, count)
-                else UiText.Simple(R.string.message_retry_failure),
-        )
-      }
+      _uiState.update { it.copy(showRetryDialog = false) }
+      _snackbarEvents.send(
+          if (result.isSuccess) UiText.Plural(R.plurals.message_reports_queued_for_retry, count)
+          else UiText.Simple(R.string.message_retry_failure)
+      )
     }
   }
 
   fun exportFailedReports() {
     viewModelScope.launch {
       val result = settingsRepository.exportFailedReports()
-
-      _uiState.update {
-        it.copy(
-            showExportDialog = false,
-            snackbarMessage =
-                UiText.Simple(
-                    if (result.isSuccess) R.string.message_export_success
-                    else R.string.message_export_failure
-                ),
-        )
-      }
+      _uiState.update { it.copy(showExportDialog = false) }
+      _snackbarEvents.send(
+          UiText.Simple(
+              if (result.isSuccess) R.string.message_export_success
+              else R.string.message_export_failure
+          ),
+      )
     }
   }
 
   fun deleteFailedReports() {
     viewModelScope.launch {
       val result = settingsRepository.deleteFailedReports()
-
-      _uiState.update {
-        it.copy(
-            showDeleteDialog = false,
-            snackbarMessage =
-                UiText.Simple(
-                    if (result.isSuccess) R.string.message_delete_success
-                    else R.string.message_delete_failure
-                ),
-        )
-      }
+      _uiState.update { it.copy(showDeleteDialog = false) }
+      _snackbarEvents.send(
+          UiText.Simple(
+              if (result.isSuccess) R.string.message_delete_success
+              else R.string.message_delete_failure
+          ),
+      )
     }
   }
 
