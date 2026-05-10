@@ -10,7 +10,6 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
 import android.provider.Settings
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -40,6 +39,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -50,6 +52,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -66,15 +69,28 @@ import java.time.format.DateTimeFormatter
 import java.util.*
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 
 private val DISPLAY_FORMATTER =
     DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss z").withZone(ZoneId.systemDefault())
 
+/** A snackbar to show on the main screen, optionally with one action. */
+data class SnackbarRequest(val message: UiText, val action: Action? = null) {
+  enum class Action {
+    OPEN_APP_SETTINGS
+  }
+}
+
 class MainActivity : ComponentActivity() {
   private var binder: FollowService.FollowBinder? = null
   private var stateCollectionJob: Job? = null
+
+  private val _snackbarRequests = MutableSharedFlow<SnackbarRequest>(extraBufferCapacity = 1)
+  private val snackbarRequests: SharedFlow<SnackbarRequest> = _snackbarRequests.asSharedFlow()
 
   private val locationViewModel: LocationViewModel by viewModels {
     LocationViewModel.factory(appContainer)
@@ -108,7 +124,12 @@ class MainActivity : ComponentActivity() {
   private val requestNotificationPermissionLauncher =
       registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (!isGranted) {
-          Toast.makeText(this, R.string.toast_notifications_denied, Toast.LENGTH_LONG).show()
+          _snackbarRequests.tryEmit(
+              SnackbarRequest(
+                  message = UiText.Simple(R.string.toast_notifications_denied),
+                  action = SnackbarRequest.Action.OPEN_APP_SETTINGS,
+              )
+          )
         }
       }
 
@@ -117,8 +138,9 @@ class MainActivity : ComponentActivity() {
         if (isGranted) {
           startService()
         } else if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
-          Toast.makeText(this, R.string.toast_location_permission_required, Toast.LENGTH_LONG)
-              .show()
+          _snackbarRequests.tryEmit(
+              SnackbarRequest(UiText.Simple(R.string.toast_location_permission_required))
+          )
         } else {
           showLocationSettingsDialog = true
         }
@@ -174,6 +196,7 @@ class MainActivity : ComponentActivity() {
             displayPreferences = displayPreferences,
             showLocationSettingsDialog = showLocationSettingsDialog,
             onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
+            snackbarRequests = snackbarRequests,
             onOpenAppSettings = {
               showLocationSettingsDialog = false
               openAppSettings()
@@ -233,7 +256,7 @@ class MainActivity : ComponentActivity() {
     val success = service.setLogging(isChecked)
 
     if (!success) {
-      Toast.makeText(this, R.string.toast_logging_start_failed, Toast.LENGTH_LONG).show()
+      _snackbarRequests.tryEmit(SnackbarRequest(UiText.Simple(R.string.toast_logging_start_failed)))
     }
   }
 
@@ -318,8 +341,35 @@ fun MainScreen(
     displayPreferences: DisplayPreferences,
     showLocationSettingsDialog: Boolean,
     onDismissLocationSettingsDialog: () -> Unit,
+    snackbarRequests: SharedFlow<SnackbarRequest>,
     onOpenAppSettings: () -> Unit,
 ) {
+  val context = LocalContext.current
+  val snackbarHostState = remember { SnackbarHostState() }
+  val openSettingsText = stringResource(R.string.action_open_settings)
+
+  LaunchedEffect(snackbarRequests) {
+    snackbarRequests.collect { req ->
+      val actionLabel =
+          when (req.action) {
+            SnackbarRequest.Action.OPEN_APP_SETTINGS -> openSettingsText
+            null -> null
+          }
+      val result =
+          snackbarHostState.showSnackbar(
+              message = req.message.resolve(context),
+              actionLabel = actionLabel,
+              duration = SnackbarDuration.Long,
+          )
+      if (result == SnackbarResult.ActionPerformed) {
+        when (req.action) {
+          SnackbarRequest.Action.OPEN_APP_SETTINGS -> onOpenAppSettings()
+          null -> {}
+        }
+      }
+    }
+  }
+
   var isDebugEnabled by remember { mutableStateOf(false) }
 
   Scaffold(

@@ -274,10 +274,10 @@ class SettingsViewModelTest {
     assertEquals(7, vm.uiState.value.failedReportCount)
   }
 
-  // Action toast routing
+  // Action snackbar routing
 
   @Test
-  fun `resetCredentialBlock success sets success toast and dismisses dialog`() = runTest {
+  fun `resetCredentialBlock success sets success snackbar and dismisses dialog`() = runTest {
     val actions = StubSettingsActions(resetResult = Result.success(Unit))
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
@@ -289,13 +289,13 @@ class SettingsViewModelTest {
     val state = vm.uiState.value
     assertFalse(state.showResetDialog)
     assertEquals(
-        ToastMessage.Simple(R.string.toast_credential_reset_success),
-        state.toastMessage,
+        UiText.Simple(R.string.toast_credential_reset_success),
+        state.snackbarMessage,
     )
   }
 
   @Test
-  fun `resetCredentialBlock failure sets failure toast`() = runTest {
+  fun `resetCredentialBlock failure sets failure snackbar`() = runTest {
     val actions = StubSettingsActions(resetResult = Result.failure(RuntimeException("nope")))
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
@@ -304,13 +304,13 @@ class SettingsViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        ToastMessage.Simple(R.string.toast_credential_reset_failure),
-        vm.uiState.value.toastMessage,
+        UiText.Simple(R.string.toast_credential_reset_failure),
+        vm.uiState.value.snackbarMessage,
     )
   }
 
   @Test
-  fun `retryFailedReports success uses Plural toast with current failedReportCount`() = runTest {
+  fun `retryFailedReports success uses Plural snackbar with current failedReportCount`() = runTest {
     val dao = FakeLocationReportDao(initialFailedCount = 4)
     val actions = StubSettingsActions(retryResult = Result.success(Unit))
     val (vm, _) = newViewModel(dao = dao, actions = actions)
@@ -320,13 +320,13 @@ class SettingsViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, 4),
-        vm.uiState.value.toastMessage,
+        UiText.Plural(R.plurals.toast_reports_queued_for_retry, 4),
+        vm.uiState.value.snackbarMessage,
     )
   }
 
   @Test
-  fun `retryFailedReports failure sets retry failure toast`() = runTest {
+  fun `retryFailedReports failure sets retry failure snackbar`() = runTest {
     val actions = StubSettingsActions(retryResult = Result.failure(RuntimeException()))
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
@@ -335,13 +335,13 @@ class SettingsViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        ToastMessage.Simple(R.string.toast_retry_failure),
-        vm.uiState.value.toastMessage,
+        UiText.Simple(R.string.toast_retry_failure),
+        vm.uiState.value.snackbarMessage,
     )
   }
 
   @Test
-  fun `exportFailedReports success and failure route to correct toasts`() = runTest {
+  fun `exportFailedReports success and failure route to correct snackbar`() = runTest {
     // Success
     val successActions = StubSettingsActions(exportResult = Result.success(Unit))
     val (successVm, _) = newViewModel(actions = successActions)
@@ -349,8 +349,8 @@ class SettingsViewModelTest {
     successVm.exportFailedReports()
     advanceUntilIdle()
     assertEquals(
-        ToastMessage.Simple(R.string.toast_export_success),
-        successVm.uiState.value.toastMessage,
+        UiText.Simple(R.string.toast_export_success),
+        successVm.uiState.value.snackbarMessage,
     )
 
     // Failure
@@ -360,21 +360,21 @@ class SettingsViewModelTest {
     failureVm.exportFailedReports()
     advanceUntilIdle()
     assertEquals(
-        ToastMessage.Simple(R.string.toast_export_failure),
-        failureVm.uiState.value.toastMessage,
+        UiText.Simple(R.string.toast_export_failure),
+        failureVm.uiState.value.snackbarMessage,
     )
   }
 
   @Test
-  fun `deleteFailedReports success and failure route to correct toasts`() = runTest {
+  fun `deleteFailedReports success and failure route to correct snackbar`() = runTest {
     val successActions = StubSettingsActions(deleteResult = Result.success(Unit))
     val (successVm, _) = newViewModel(actions = successActions)
     advanceUntilIdle()
     successVm.deleteFailedReports()
     advanceUntilIdle()
     assertEquals(
-        ToastMessage.Simple(R.string.toast_delete_success),
-        successVm.uiState.value.toastMessage,
+        UiText.Simple(R.string.toast_delete_success),
+        successVm.uiState.value.snackbarMessage,
     )
 
     val failureActions = StubSettingsActions(deleteResult = Result.failure(RuntimeException()))
@@ -383,23 +383,23 @@ class SettingsViewModelTest {
     failureVm.deleteFailedReports()
     advanceUntilIdle()
     assertEquals(
-        ToastMessage.Simple(R.string.toast_delete_failure),
-        failureVm.uiState.value.toastMessage,
+        UiText.Simple(R.string.toast_delete_failure),
+        failureVm.uiState.value.snackbarMessage,
     )
   }
 
   @Test
-  fun `clearToastMessage nulls the toastMessage`() = runTest {
+  fun `clearSnackbarMessage nulls the snackbarMessage`() = runTest {
     val actions = StubSettingsActions(deleteResult = Result.success(Unit))
     val (vm, _) = newViewModel(actions = actions)
     advanceUntilIdle()
 
     vm.deleteFailedReports()
     advanceUntilIdle()
-    assertNotNull(vm.uiState.value.toastMessage)
+    assertNotNull(vm.uiState.value.snackbarMessage)
 
-    vm.clearToastMessage()
-    assertNull(vm.uiState.value.toastMessage)
+    vm.clearSnackbarMessage()
+    assertNull(vm.uiState.value.snackbarMessage)
   }
 
   // Construction helper

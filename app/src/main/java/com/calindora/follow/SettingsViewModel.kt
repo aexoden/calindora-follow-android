@@ -45,7 +45,7 @@ data class SettingsUiState(
     val showRetryDialog: Boolean = false,
     val showExportDialog: Boolean = false,
     val showDeleteDialog: Boolean = false,
-    val toastMessage: ToastMessage? = null,
+    val snackbarMessage: UiText? = null,
     val isLoading: Boolean = true,
 ) {
   /** Whether the "Reset credential block" action should be offered. */
@@ -233,7 +233,7 @@ class SettingsViewModel(
 
   fun dismissDeleteDialog() = _uiState.update { it.copy(showDeleteDialog = false) }
 
-  fun clearToastMessage() = _uiState.update { it.copy(toastMessage = null) }
+  fun clearSnackbarMessage() = _uiState.update { it.copy(snackbarMessage = null) }
 
   // Action functions
   fun resetCredentialBlock() {
@@ -243,8 +243,8 @@ class SettingsViewModel(
       _uiState.update {
         it.copy(
             showResetDialog = false,
-            toastMessage =
-                ToastMessage.Simple(
+            snackbarMessage =
+                UiText.Simple(
                     if (result.isSuccess) R.string.toast_credential_reset_success
                     else R.string.toast_credential_reset_failure
                 ),
@@ -261,10 +261,9 @@ class SettingsViewModel(
       _uiState.update {
         it.copy(
             showRetryDialog = false,
-            toastMessage =
-                if (result.isSuccess)
-                    ToastMessage.Plural(R.plurals.toast_reports_queued_for_retry, count)
-                else ToastMessage.Simple(R.string.toast_retry_failure),
+            snackbarMessage =
+                if (result.isSuccess) UiText.Plural(R.plurals.toast_reports_queued_for_retry, count)
+                else UiText.Simple(R.string.toast_retry_failure),
         )
       }
     }
@@ -277,8 +276,8 @@ class SettingsViewModel(
       _uiState.update {
         it.copy(
             showExportDialog = false,
-            toastMessage =
-                ToastMessage.Simple(
+            snackbarMessage =
+                UiText.Simple(
                     if (result.isSuccess) R.string.toast_export_success
                     else R.string.toast_export_failure
                 ),
@@ -294,8 +293,8 @@ class SettingsViewModel(
       _uiState.update {
         it.copy(
             showDeleteDialog = false,
-            toastMessage =
-                ToastMessage.Simple(
+            snackbarMessage =
+                UiText.Simple(
                     if (result.isSuccess) R.string.toast_delete_success
                     else R.string.toast_delete_failure
                 ),

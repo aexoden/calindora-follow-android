@@ -1,7 +1,6 @@
 package com.calindora.follow
 
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.setContent
@@ -40,6 +39,9 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -84,6 +86,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   val context = LocalContext.current
   val activity = LocalActivity.current
   val scrollState = rememberScrollState()
+  val snackbarHostState = remember { SnackbarHostState() }
 
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -103,11 +106,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     }
   }
 
-  // Display toast messages for one-shot operations
-  LaunchedEffect(uiState.toastMessage) {
-    uiState.toastMessage?.let {
-      Toast.makeText(context, it.resolve(context), Toast.LENGTH_LONG).show()
-      viewModel.clearToastMessage()
+  // Display snackbar messages for one-shot operations
+  LaunchedEffect(uiState.snackbarMessage) {
+    uiState.snackbarMessage?.let { msg ->
+      snackbarHostState.showSnackbar(
+          message = msg.resolve(context),
+          duration = SnackbarDuration.Short,
+      )
+      viewModel.clearSnackbarMessage()
     }
   }
 
@@ -120,6 +126,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
   val urlNoHostError = stringResource(UrlValidationError.NoHost.errorRes)
 
   Scaffold(
+      snackbarHost = { SnackbarHost(snackbarHostState) },
       topBar = {
         TopAppBar(
             title = { Text(stringResource(R.string.action_settings)) },
@@ -133,7 +140,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             },
             actions = { SavedIndicator(visible = savedIndicatorVisible) },
         )
-      }
+      },
   ) { paddingValues ->
     Column(
         modifier =
