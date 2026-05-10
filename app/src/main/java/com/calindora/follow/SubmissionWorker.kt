@@ -5,7 +5,6 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.os.Environment
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.datastore.core.DataStore
@@ -147,8 +146,8 @@ class SubmissionWorker(
     /**
      * Export permanently-failed reports to a log file in [logsDir].
      *
-     * Treats an empty queue as a no-op success. Returns failure if external storage isn't mounted
-     * or the write fails.
+     * Treats an empty queue as a no-op success. Returns failure if [logsDir] is null (external
+     * files directory unavailable) or the write fails.
      */
     suspend fun exportFailedReports(
         locationReportDao: LocationReportDao,
@@ -161,7 +160,7 @@ class SubmissionWorker(
               // race conditions, as the action in the UI is gated behind failedReportCount > 0.
               if (reports.isEmpty()) return@runCatching
 
-              if (Environment.getExternalStorageState() != Environment.MEDIA_MOUNTED) {
+              if (logsDir == null) {
                 throw IOException("External storage is not mounted")
               }
 

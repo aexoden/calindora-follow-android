@@ -11,7 +11,6 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.location.OnNmeaMessageListener
 import android.os.Binder
-import android.os.Environment
 import android.os.IBinder
 import android.os.SystemClock
 import android.util.Log
@@ -135,10 +134,6 @@ class FollowService : Service(), FollowServiceHandle {
     startForeground(Notifications.Ids.FOREGROUND, notification)
   }
 
-  private fun isExternalStorageWritable(): Boolean {
-    return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
-  }
-
   private fun startLocationUpdates() {
     if (
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -158,8 +153,9 @@ class FollowService : Service(), FollowServiceHandle {
   }
 
   private fun startLogging(): Boolean {
-    if (!isExternalStorageWritable()) {
-      Log.w("FollowService", "Cannot start NMEA logging: external storage is not mounted")
+    val logsDir = getExternalFilesDir("logs")
+    if (logsDir == null) {
+      Log.w("FollowService", "Cannot start NMEA logging: external files directory is unavailable")
       return false
     }
 
