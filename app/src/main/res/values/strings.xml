@@ -49,6 +49,7 @@
   <string name="label_next_sync">Next sync in:</string>
   <string name="label_off">OFF</string>
   <string name="label_on">ON</string>
+  <string name="label_service_off">Location sharing is off.</string>
   <string name="label_speed">Speed:</string>
   <string name="label_submission_queue_size">Queue Size:</string>
   <string name="label_submission_time">Last Submission:</string>

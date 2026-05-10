@@ -35,6 +35,7 @@ import java.time.Instant
 @Composable
 fun LocationStatusSection(
     locationData: Location?,
+    isBound: Boolean,
     lastSubmissionTime: Long,
     queueSize: Int,
     syncWorkInfo: WorkInfo?,
@@ -94,7 +95,7 @@ fun LocationStatusSection(
                     locale,
                 ),
         )
-      } else {
+      } else if (isBound) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
@@ -105,6 +106,8 @@ fun LocationStatusSection(
           )
           Text(stringResource(R.string.label_waiting_for_location))
         }
+      } else {
+        Text(stringResource(R.string.label_service_off))
       }
 
       HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))

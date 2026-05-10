@@ -148,6 +148,7 @@ fun MainScreen(
     ) {
       LocationStatusSection(
           locationData = state.locationData,
+          isBound = state.isBound,
           lastSubmissionTime = state.lastSubmissionTime,
           queueSize = state.queueSize,
           syncWorkInfo = state.syncWorkInfo,
