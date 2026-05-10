@@ -31,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.work.WorkInfo
@@ -40,6 +39,7 @@ import com.calindora.follow.DisplayPreferences
 import com.calindora.follow.R
 import com.calindora.follow.UiText
 import com.calindora.follow.ui.components.ConfirmationDialog
+import com.calindora.follow.ui.theme.Spacing
 import kotlinx.coroutines.flow.SharedFlow
 
 /** Snapshot of everything [MainScreen] needs to render. */
@@ -142,7 +142,7 @@ fun MainScreen(
     Column(
         modifier =
             Modifier.padding(paddingValues)
-                .padding(16.dp)
+                .padding(Spacing.lg)
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
     ) {
@@ -155,11 +155,11 @@ fun MainScreen(
           displayPreferences = state.displayPreferences,
       )
 
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(Spacing.sm))
 
       CredentialWarningBanner(status = state.credentialStatus, onClick = callbacks.onSettingsClick)
 
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(Spacing.sm))
 
       ServiceControlsSection(
           isBound = state.isBound,
@@ -170,7 +170,7 @@ fun MainScreen(
           onLogToggle = callbacks.onLogToggle,
       )
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(Spacing.xl))
 
       DebugSection(
           isDebugEnabled = isDebugEnabled,

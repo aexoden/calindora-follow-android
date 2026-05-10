@@ -11,7 +11,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import com.calindora.follow.DisplayPreferences
 import com.calindora.follow.R
@@ -24,6 +23,7 @@ import com.calindora.follow.ui.format.formatDistance
 import com.calindora.follow.ui.format.formatSpeed
 import com.calindora.follow.ui.format.formatSubmissionTime
 import com.calindora.follow.ui.format.rememberCountdown
+import com.calindora.follow.ui.theme.Spacing
 import java.time.Instant
 
 @Composable
@@ -35,8 +35,8 @@ fun LocationStatusSection(
     showNextSync: Boolean,
     displayPreferences: DisplayPreferences,
 ) {
-  Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
-    Column(modifier = Modifier.padding(16.dp)) {
+  Card(modifier = Modifier.fillMaxWidth()) {
+    Column(modifier = Modifier.padding(Spacing.lg)) {
       if (locationData != null) {
         val locale = LocalLocale.current.platformLocale
         val distanceAbbr = stringResource(displayPreferences.distanceUnit.abbreviationRes)
@@ -92,7 +92,7 @@ fun LocationStatusSection(
         Text(stringResource(R.string.label_waiting_for_location))
       }
 
-      HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+      HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
 
       StatusRow(
           label = stringResource(R.string.label_submission_time),

@@ -38,7 +38,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.calindora.follow.Config
 import com.calindora.follow.DistanceUnit
@@ -50,6 +49,7 @@ import com.calindora.follow.ui.components.ActionButtonWithDescription
 import com.calindora.follow.ui.components.ConfirmationDialog
 import com.calindora.follow.ui.components.SettingsDropdownItem
 import com.calindora.follow.ui.components.SettingsTextFieldItem
+import com.calindora.follow.ui.theme.Spacing
 import com.calindora.follow.validateServiceUrl
 import kotlinx.coroutines.delay
 
@@ -117,21 +117,21 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
     Column(
         modifier =
             Modifier.padding(paddingValues)
-                .padding(16.dp)
+                .padding(Spacing.lg)
                 .fillMaxSize()
                 .imePadding()
                 .verticalScroll(scrollState)
     ) {
       // Connection settings
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
           Text(
               text = stringResource(R.string.preference_category_connection),
               style = MaterialTheme.typography.titleMedium,
               color = MaterialTheme.colorScheme.primary,
           )
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(Spacing.md))
 
           SettingsTextFieldItem(
               label = stringResource(R.string.preference_url),
@@ -156,7 +156,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
               },
           )
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(Spacing.md))
 
           SettingsTextFieldItem(
               label = stringResource(R.string.preference_device_key),
@@ -172,7 +172,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
               keyboardActions = KeyboardActions(onNext = { secretFocus.requestFocus() }),
           )
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(Spacing.md))
 
           SettingsTextFieldItem(
               label = stringResource(R.string.preference_device_secret),
@@ -191,17 +191,17 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         }
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(Spacing.xl))
 
       Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(Spacing.lg)) {
           Text(
               text = stringResource(R.string.preference_category_display),
               style = MaterialTheme.typography.titleMedium,
               color = MaterialTheme.colorScheme.primary,
           )
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(Spacing.md))
 
           SettingsDropdownItem(
               label = stringResource(R.string.preference_distance_unit),
@@ -211,7 +211,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
               onSelected = viewModel::updateDistanceUnit,
           )
 
-          Spacer(modifier = Modifier.height(12.dp))
+          Spacer(modifier = Modifier.height(Spacing.md))
 
           SettingsDropdownItem(
               label = stringResource(R.string.preference_speed_unit),
@@ -223,7 +223,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         }
       }
 
-      Spacer(modifier = Modifier.height(24.dp))
+      Spacer(modifier = Modifier.height(Spacing.xl))
 
       // Status section
       Text(
@@ -232,14 +232,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
           color = MaterialTheme.colorScheme.primary,
       )
 
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(Spacing.sm))
 
       CredentialStatusCard(
           isBlocked = uiState.isCredentialBlocked,
           consecutiveAuthFailures = uiState.consecutiveAuthFailures,
       )
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(Spacing.lg))
 
       // Reset Credential Block (visible if blocked or enough auth failures)
       if (uiState.shouldShowResetButton) {
@@ -252,7 +252,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 
       // Failed report management
       if (uiState.failedReportCount > 0) {
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.lg))
 
         FailedReportsActions(
             failedReportCount = uiState.failedReportCount,

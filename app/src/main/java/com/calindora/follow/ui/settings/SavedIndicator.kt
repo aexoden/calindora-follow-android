@@ -17,14 +17,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.calindora.follow.R
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun SavedIndicator(visible: Boolean) {
   AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        modifier = Modifier.padding(end = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+        modifier = Modifier.padding(end = Spacing.md),
     ) {
       Icon(
           painter = painterResource(R.drawable.check_24px),

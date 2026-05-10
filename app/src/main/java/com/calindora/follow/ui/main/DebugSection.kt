@@ -5,11 +5,10 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -36,6 +35,7 @@ import com.calindora.follow.ui.format.formatCountdown
 import com.calindora.follow.ui.format.rememberCountdown
 import com.calindora.follow.ui.format.stopReasonLabel
 import com.calindora.follow.ui.format.toLabel
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun DebugSection(
@@ -64,14 +64,16 @@ fun DebugSection(
         enter = fadeIn() + expandVertically(),
         exit = fadeOut() + shrinkVertically(),
     ) {
-      Column {
-        Spacer(modifier = Modifier.height(16.dp))
-
+      Column(
+          modifier = Modifier.padding(top = Spacing.lg),
+          verticalArrangement = Arrangement.spacedBy(Spacing.lg),
+      ) {
         SyncStatusCard(workInfo = syncWorkInfo)
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Row(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+        ) {
           Button(
               onClick = { showClearConfirm = true },
               colors =
@@ -79,7 +81,7 @@ fun DebugSection(
                       containerColor = MaterialTheme.colorScheme.error,
                       contentColor = MaterialTheme.colorScheme.onError,
                   ),
-              modifier = Modifier.weight(1f).padding(end = 8.dp),
+              modifier = Modifier.weight(1f),
           ) {
             Text(stringResource(R.string.label_clear_queue))
           }
@@ -91,13 +93,11 @@ fun DebugSection(
                       containerColor = MaterialTheme.colorScheme.error,
                       contentColor = MaterialTheme.colorScheme.onError,
                   ),
-              modifier = Modifier.weight(1f).padding(start = 8.dp),
+              modifier = Modifier.weight(1f),
           ) {
             Text(stringResource(R.string.label_drop_first_queued))
           }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
 
         Button(onClick = onForceSyncClick, modifier = Modifier.fillMaxWidth()) {
           Text(stringResource(R.string.label_force_sync))

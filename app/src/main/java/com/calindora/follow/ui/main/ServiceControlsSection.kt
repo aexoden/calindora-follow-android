@@ -1,17 +1,15 @@
 package com.calindora.follow.ui.main
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.calindora.follow.R
 import com.calindora.follow.ui.components.OnOffPillButton
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun ServiceControlsSection(
@@ -22,7 +20,7 @@ fun ServiceControlsSection(
     onTrackToggle: (Boolean) -> Unit,
     onLogToggle: (Boolean) -> Unit,
 ) {
-  Column {
+  Column(verticalArrangement = Arrangement.spacedBy(Spacing.lg)) {
     OnOffPillButton(
         checked = isBound,
         onCheckedChange = onServiceToggle,
@@ -31,16 +29,17 @@ fun ServiceControlsSection(
         modifier = Modifier.fillMaxWidth(),
     )
 
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Row(modifier = Modifier.fillMaxWidth()) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.lg),
+    ) {
       OnOffPillButton(
           checked = isLogging,
           onCheckedChange = onLogToggle,
           enabledText = stringResource(R.string.label_logging_on),
           disabledText = stringResource(R.string.label_logging_off),
           enabled = isBound,
-          modifier = Modifier.weight(1f).padding(end = 8.dp),
+          modifier = Modifier.weight(1f),
       )
 
       OnOffPillButton(
@@ -49,7 +48,7 @@ fun ServiceControlsSection(
           enabledText = stringResource(R.string.label_tracking_on),
           disabledText = stringResource(R.string.label_tracking_off),
           enabled = isBound,
-          modifier = Modifier.weight(1f).padding(start = 8.dp),
+          modifier = Modifier.weight(1f),
       )
     }
   }

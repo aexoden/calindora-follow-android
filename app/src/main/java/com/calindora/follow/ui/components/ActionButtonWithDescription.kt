@@ -12,7 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun ActionButtonWithDescription(
@@ -24,7 +24,7 @@ fun ActionButtonWithDescription(
 ) {
   Column(modifier = modifier.fillMaxWidth()) {
     Button(onClick = onClick, modifier = Modifier.fillMaxWidth(), colors = colors) { Text(text) }
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(Spacing.sm))
     Text(
         text = description,
         style = MaterialTheme.typography.bodySmall,

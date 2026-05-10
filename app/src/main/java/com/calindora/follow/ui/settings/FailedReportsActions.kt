@@ -8,9 +8,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.calindora.follow.R
 import com.calindora.follow.ui.components.ActionButtonWithDescription
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun FailedReportsActions(
@@ -30,7 +30,7 @@ fun FailedReportsActions(
       onClick = onRetryClick,
   )
 
-  Spacer(modifier = Modifier.height(16.dp))
+  Spacer(modifier = Modifier.height(Spacing.lg))
 
   ActionButtonWithDescription(
       text = stringResource(R.string.action_export_failed_reports),
@@ -43,7 +43,7 @@ fun FailedReportsActions(
       onClick = onExportClick,
   )
 
-  Spacer(modifier = Modifier.height(16.dp))
+  Spacer(modifier = Modifier.height(Spacing.lg))
 
   ActionButtonWithDescription(
       text = stringResource(R.string.action_delete_failed_reports),

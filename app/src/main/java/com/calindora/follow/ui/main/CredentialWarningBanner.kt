@@ -20,10 +20,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.calindora.follow.Config
 import com.calindora.follow.CredentialStatus
 import com.calindora.follow.R
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun CredentialWarningBanner(status: CredentialStatus, onClick: () -> Unit) {
@@ -56,10 +56,11 @@ fun CredentialWarningBanner(status: CredentialStatus, onClick: () -> Unit) {
                 containerColor = containerColor,
                 contentColor = contentColor,
             ),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
       Row(
-          modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
+          modifier =
+              Modifier.fillMaxWidth().padding(horizontal = Spacing.md, vertical = Spacing.md),
           verticalAlignment = Alignment.CenterVertically,
       ) {
         Text(
@@ -68,7 +69,7 @@ fun CredentialWarningBanner(status: CredentialStatus, onClick: () -> Unit) {
             style = MaterialTheme.typography.bodyMedium,
             modifier = Modifier.weight(1f),
         )
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(Spacing.sm))
         Icon(
             painter = painterResource(R.drawable.chevron_right_24px),
             contentDescription = null,

@@ -8,13 +8,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun StatusRow(label: String, value: String) {
   Row(
       modifier =
-          Modifier.fillMaxWidth().padding(vertical = 4.dp).semantics(mergeDescendants = true) {}
+          Modifier.fillMaxWidth().padding(vertical = Spacing.xs).semantics(
+              mergeDescendants = true
+          ) {}
   ) {
     Text(
         text = label,
