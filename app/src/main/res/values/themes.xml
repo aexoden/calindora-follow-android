@@ -1,4 +1,4 @@
 <resources>
   <!-- Bare-minimum XML theme. Actual UI styling lives in Compose. -->
-  <style name="Theme.CalindoraFollow" parent="Theme.Material3.DayNight.NoActionBar" />
+  <style name="Theme.CalindoraFollow" parent="@android:style/Theme.Material.Light.NoActionBar" />
 </resources>
