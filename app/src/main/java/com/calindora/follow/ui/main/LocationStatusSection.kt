@@ -17,7 +17,11 @@ import com.calindora.follow.DisplayPreferences
 import com.calindora.follow.R
 import com.calindora.follow.ui.components.StatusRow
 import com.calindora.follow.ui.format.DISPLAY_FORMATTER
+import com.calindora.follow.ui.format.formatBearing
+import com.calindora.follow.ui.format.formatCoordinate
 import com.calindora.follow.ui.format.formatCountdown
+import com.calindora.follow.ui.format.formatDistance
+import com.calindora.follow.ui.format.formatSpeed
 import com.calindora.follow.ui.format.formatSubmissionTime
 import com.calindora.follow.ui.format.rememberCountdown
 import java.time.Instant
@@ -43,44 +47,44 @@ fun LocationStatusSection(
         )
         StatusRow(
             label = stringResource(R.string.label_latitude),
-            value = String.format(locale, "%.5f°", locationData.latitude),
+            value = formatCoordinate(locationData.latitude, locale),
         )
         StatusRow(
             label = stringResource(R.string.label_longitude),
-            value = String.format(locale, "%.5f°", locationData.longitude),
+            value = formatCoordinate(locationData.longitude, locale),
         )
         StatusRow(
             label = stringResource(R.string.label_altitude),
             value =
-                String.format(
-                    locale,
-                    "%.2f %s",
-                    displayPreferences.distanceUnit.fromMeters(locationData.altitude),
+                formatDistance(
+                    locationData.altitude,
+                    displayPreferences.distanceUnit,
                     distanceAbbr,
+                    locale,
                 ),
         )
         StatusRow(
             label = stringResource(R.string.label_speed),
             value =
-                String.format(
-                    locale,
-                    "%.2f %s",
-                    displayPreferences.speedUnit.fromMetersPerSecond(locationData.speed.toDouble()),
+                formatSpeed(
+                    locationData.speed.toDouble(),
+                    displayPreferences.speedUnit,
                     speedAbbr,
+                    locale,
                 ),
         )
         StatusRow(
             label = stringResource(R.string.label_bearing),
-            value = String.format(locale, "%.2f°", locationData.bearing),
+            value = formatBearing(locationData.bearing.toDouble(), locale),
         )
         StatusRow(
             label = stringResource(R.string.label_accuracy),
             value =
-                String.format(
-                    locale,
-                    "%.2f %s",
-                    displayPreferences.distanceUnit.fromMeters(locationData.accuracy.toDouble()),
+                formatDistance(
+                    locationData.accuracy.toDouble(),
+                    displayPreferences.distanceUnit,
                     distanceAbbr,
+                    locale,
                 ),
         )
       } else {
