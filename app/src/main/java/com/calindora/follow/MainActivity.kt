@@ -21,6 +21,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import com.calindora.follow.ui.main.MainScreen
+import com.calindora.follow.ui.main.MainScreenCallbacks
+import com.calindora.follow.ui.main.MainScreenState
 import com.calindora.follow.ui.main.SnackbarRequest
 import com.calindora.follow.ui.theme.AppTheme
 import kotlinx.coroutines.Job
@@ -116,37 +118,45 @@ class MainActivity : ComponentActivity() {
         val isBound = serviceState != null
 
         MainScreen(
-            queueSize =
-                locationViewModel.queueSize.collectAsStateWithLifecycle(initialValue = 0).value,
-            lastSubmissionTime =
-                locationViewModel.lastSubmissionTime
-                    .collectAsStateWithLifecycle(initialValue = 0L)
-                    .value,
-            syncWorkInfo = syncWorkInfo,
-            onServiceToggle = { isChecked -> onButtonService(isChecked) },
-            onTrackToggle = { isChecked -> onButtonTrack(isChecked) },
-            onLogToggle = { isChecked -> onButtonLog(isChecked) },
-            onClearClick = { locationViewModel.clearQueue() },
-            onDropFirstClick = { locationViewModel.dropOldestUnsubmittedReport() },
-            onForceSyncClick = { locationViewModel.forceSubmission() },
-            onSettingsClick = {
-              val intent = Intent(this, SettingsActivity::class.java)
-              startActivity(intent)
-            },
-            isBound = isBound,
-            isTracking = serviceState?.tracking == true,
-            isLogging = serviceState?.logging == true,
-            locationData = serviceState?.location,
-            credentialStatus = credentialStatus,
-            displayPreferences = displayPreferences,
-            showLocationSettingsDialog = showLocationSettingsDialog,
-            onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
+            state =
+                MainScreenState(
+                    queueSize =
+                        locationViewModel.queueSize
+                            .collectAsStateWithLifecycle(initialValue = 0)
+                            .value,
+                    lastSubmissionTime =
+                        locationViewModel.lastSubmissionTime
+                            .collectAsStateWithLifecycle(initialValue = 0L)
+                            .value,
+                    syncWorkInfo = syncWorkInfo,
+                    isBound = isBound,
+                    isTracking = serviceState?.tracking == true,
+                    isLogging = serviceState?.logging == true,
+                    locationData = serviceState?.location,
+                    credentialStatus = credentialStatus,
+                    displayPreferences = displayPreferences,
+                    showLocationSettingsDialog = showLocationSettingsDialog,
+                ),
+            callbacks =
+                MainScreenCallbacks(
+                    onServiceToggle = ::onButtonService,
+                    onTrackToggle = ::onButtonTrack,
+                    onLogToggle = ::onButtonLog,
+                    onClearClick = locationViewModel::clearQueue,
+                    onDropFirstClick = locationViewModel::dropOldestUnsubmittedReport,
+                    onForceSyncClick = locationViewModel::forceSubmission,
+                    onSettingsClick = {
+                      val intent = Intent(this, SettingsActivity::class.java)
+                      startActivity(intent)
+                    },
+                    onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
+                    onOpenAppSettings = {
+                      showLocationSettingsDialog = false
+                      openAppSettings()
+                    },
+                    onOpenAppNotificationSettings = ::openAppNotificationSettings,
+                ),
             snackbarRequests = snackbarRequests,
-            onOpenAppSettings = {
-              showLocationSettingsDialog = false
-              openAppSettings()
-            },
-            onOpenAppNotificationSettings = { openAppNotificationSettings() },
         )
       }
     }

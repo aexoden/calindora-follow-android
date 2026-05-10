@@ -36,30 +36,40 @@ import com.calindora.follow.UiText
 import com.calindora.follow.ui.components.ConfirmationDialog
 import kotlinx.coroutines.flow.SharedFlow
 
+/** Snapshot of everything [MainScreen] needs to render. */
+data class MainScreenState(
+    val queueSize: Int,
+    val lastSubmissionTime: Long,
+    val syncWorkInfo: WorkInfo?,
+    val isBound: Boolean,
+    val isTracking: Boolean,
+    val isLogging: Boolean,
+    val locationData: Location?,
+    val credentialStatus: CredentialStatus,
+    val displayPreferences: DisplayPreferences,
+    val showLocationSettingsDialog: Boolean,
+)
+
+/** Actions [MainScreen] can invoke on its host. */
+data class MainScreenCallbacks(
+    val onServiceToggle: (Boolean) -> Unit,
+    val onTrackToggle: (Boolean) -> Unit,
+    val onLogToggle: (Boolean) -> Unit,
+    val onClearClick: () -> Unit,
+    val onDropFirstClick: () -> Unit,
+    val onForceSyncClick: () -> Unit,
+    val onSettingsClick: () -> Unit,
+    val onDismissLocationSettingsDialog: () -> Unit,
+    val onOpenAppSettings: () -> Unit,
+    val onOpenAppNotificationSettings: () -> Unit,
+)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    queueSize: Int,
-    lastSubmissionTime: Long,
-    syncWorkInfo: WorkInfo?,
-    onServiceToggle: (Boolean) -> Unit,
-    onTrackToggle: (Boolean) -> Unit,
-    onLogToggle: (Boolean) -> Unit,
-    onClearClick: () -> Unit,
-    onDropFirstClick: () -> Unit,
-    onForceSyncClick: () -> Unit,
-    onSettingsClick: () -> Unit,
-    isBound: Boolean,
-    isTracking: Boolean,
-    isLogging: Boolean,
-    locationData: Location?,
-    credentialStatus: CredentialStatus,
-    displayPreferences: DisplayPreferences,
-    showLocationSettingsDialog: Boolean,
-    onDismissLocationSettingsDialog: () -> Unit,
+    state: MainScreenState,
+    callbacks: MainScreenCallbacks,
     snackbarRequests: SharedFlow<SnackbarRequest>,
-    onOpenAppSettings: () -> Unit,
-    onOpenAppNotificationSettings: () -> Unit,
 ) {
   val context = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
@@ -80,7 +90,8 @@ fun MainScreen(
           )
       if (result == SnackbarResult.ActionPerformed) {
         when (req.action) {
-          SnackbarRequest.Action.OPEN_APP_NOTIFICATION_SETTINGS -> onOpenAppNotificationSettings()
+          SnackbarRequest.Action.OPEN_APP_NOTIFICATION_SETTINGS ->
+              callbacks.onOpenAppNotificationSettings()
           null -> {}
         }
       }
@@ -94,7 +105,7 @@ fun MainScreen(
         TopAppBar(
             title = { Text(stringResource(R.string.app_name)) },
             actions = {
-              IconButton(onClick = onSettingsClick) {
+              IconButton(onClick = callbacks.onSettingsClick) {
                 Icon(
                     painter = painterResource(R.drawable.settings_24px),
                     contentDescription = stringResource(R.string.action_settings),
@@ -102,7 +113,7 @@ fun MainScreen(
               }
             },
         )
-      }
+      },
   ) { paddingValues ->
     Column(
         modifier =
@@ -112,26 +123,26 @@ fun MainScreen(
                 .verticalScroll(rememberScrollState())
     ) {
       LocationStatusSection(
-          locationData = locationData,
-          lastSubmissionTime = lastSubmissionTime,
-          queueSize = queueSize,
-          syncWorkInfo = if (isDebugEnabled) null else syncWorkInfo,
-          displayPreferences = displayPreferences,
+          locationData = state.locationData,
+          lastSubmissionTime = state.lastSubmissionTime,
+          queueSize = state.queueSize,
+          syncWorkInfo = if (isDebugEnabled) null else state.syncWorkInfo,
+          displayPreferences = state.displayPreferences,
       )
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      CredentialWarningBanner(status = credentialStatus)
+      CredentialWarningBanner(status = state.credentialStatus)
 
       Spacer(modifier = Modifier.height(8.dp))
 
       ServiceControlsSection(
-          isBound = isBound,
-          isTracking = isTracking,
-          isLogging = isLogging,
-          onServiceToggle = onServiceToggle,
-          onTrackToggle = onTrackToggle,
-          onLogToggle = onLogToggle,
+          isBound = state.isBound,
+          isTracking = state.isTracking,
+          isLogging = state.isLogging,
+          onServiceToggle = callbacks.onServiceToggle,
+          onTrackToggle = callbacks.onTrackToggle,
+          onLogToggle = callbacks.onLogToggle,
       )
 
       Spacer(modifier = Modifier.height(24.dp))
@@ -139,22 +150,22 @@ fun MainScreen(
       DebugSection(
           isDebugEnabled = isDebugEnabled,
           onDebugToggle = { isDebugEnabled = it },
-          syncWorkInfo = syncWorkInfo,
-          queueSize = queueSize,
-          onClearClick = onClearClick,
-          onDropFirstClick = onDropFirstClick,
-          onForceSyncClick = onForceSyncClick,
+          syncWorkInfo = state.syncWorkInfo,
+          queueSize = state.queueSize,
+          onClearClick = callbacks.onClearClick,
+          onDropFirstClick = callbacks.onDropFirstClick,
+          onForceSyncClick = callbacks.onForceSyncClick,
       )
     }
   }
 
-  if (showLocationSettingsDialog) {
+  if (state.showLocationSettingsDialog) {
     ConfirmationDialog(
         title = stringResource(R.string.dialog_location_permission_title),
         text = stringResource(R.string.dialog_location_permission_message),
         confirmText = stringResource(R.string.action_open_settings),
-        onConfirm = onOpenAppSettings,
-        onDismiss = onDismissLocationSettingsDialog,
+        onConfirm = callbacks.onOpenAppSettings,
+        onDismiss = callbacks.onDismissLocationSettingsDialog,
     )
   }
 }
