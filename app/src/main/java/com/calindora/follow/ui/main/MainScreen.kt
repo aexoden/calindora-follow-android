@@ -23,6 +23,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -99,7 +100,7 @@ fun MainScreen(
     }
   }
 
-  var isDebugEnabled by remember { mutableStateOf(false) }
+  var isDebugEnabled by rememberSaveable { mutableStateOf(false) }
 
   Scaffold(
       snackbarHost = { SnackbarHost(snackbarHostState) },
