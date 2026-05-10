@@ -11,7 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.calindora.follow.R
-import com.calindora.follow.ui.components.ToggleButton
+import com.calindora.follow.ui.components.OnOffPillButton
 
 @Composable
 fun ServiceControlsSection(
@@ -23,7 +23,7 @@ fun ServiceControlsSection(
     onLogToggle: (Boolean) -> Unit,
 ) {
   Column {
-    ToggleButton(
+    OnOffPillButton(
         checked = isBound,
         onCheckedChange = onServiceToggle,
         enabledText = stringResource(R.string.label_on),
@@ -34,7 +34,7 @@ fun ServiceControlsSection(
     Spacer(modifier = Modifier.height(16.dp))
 
     Row(modifier = Modifier.fillMaxWidth()) {
-      ToggleButton(
+      OnOffPillButton(
           checked = isLogging,
           onCheckedChange = onLogToggle,
           enabledText = stringResource(R.string.label_logging_on),
@@ -43,7 +43,7 @@ fun ServiceControlsSection(
           modifier = Modifier.weight(1f).padding(end = 8.dp),
       )
 
-      ToggleButton(
+      OnOffPillButton(
           checked = isTracking,
           onCheckedChange = onTrackToggle,
           enabledText = stringResource(R.string.label_tracking_on),

@@ -7,8 +7,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 
+/** A pill-shaped button that visually reflects an on/off state by swapping its label and colors. */
 @Composable
-fun ToggleButton(
+fun OnOffPillButton(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     enabledText: String,

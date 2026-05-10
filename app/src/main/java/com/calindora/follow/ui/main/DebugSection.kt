@@ -30,8 +30,8 @@ import androidx.work.WorkInfo
 import com.calindora.follow.R
 import com.calindora.follow.SubmissionWorker
 import com.calindora.follow.ui.components.ConfirmationDialog
+import com.calindora.follow.ui.components.OnOffPillButton
 import com.calindora.follow.ui.components.StatusRow
-import com.calindora.follow.ui.components.ToggleButton
 import com.calindora.follow.ui.format.formatCountdown
 import com.calindora.follow.ui.format.rememberCountdown
 import com.calindora.follow.ui.format.stopReasonLabel
@@ -51,7 +51,7 @@ fun DebugSection(
   var showDropFirstConfirm by remember { mutableStateOf(false) }
 
   Column {
-    ToggleButton(
+    OnOffPillButton(
         checked = isDebugEnabled,
         onCheckedChange = onDebugToggle,
         enabledText = stringResource(R.string.label_debug_on),
