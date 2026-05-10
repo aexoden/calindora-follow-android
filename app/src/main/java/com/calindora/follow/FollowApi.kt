@@ -56,14 +56,31 @@ internal object FollowApiFactory {
         .build()
   }
 
+  // Single-entry cache. The user has one configured service URL at a time; on the rare URL change
+  // we rebuild and drop the previous proxy.
+  private var cachedBaseUrl: String? = null
+  private var cachedApi: FollowApi? = null
+
+  @Synchronized
   fun create(baseUrl: String): FollowApi {
     val normalizedBaseUrl = if (baseUrl.endsWith("/")) baseUrl else "$baseUrl/"
+    cachedApi
+        ?.takeIf { cachedBaseUrl == normalizedBaseUrl }
+        ?.let {
+          return it
+        }
+
     val mediaType = "application/json".toMediaType()
-    return Retrofit.Builder()
-        .baseUrl(normalizedBaseUrl)
-        .client(httpClient)
-        .addConverterFactory(FollowJson.asConverterFactory(mediaType))
-        .build()
-        .create(FollowApi::class.java)
+    val api =
+        Retrofit.Builder()
+            .baseUrl(normalizedBaseUrl)
+            .client(httpClient)
+            .addConverterFactory(FollowJson.asConverterFactory(mediaType))
+            .build()
+            .create(FollowApi::class.java)
+
+    cachedBaseUrl = normalizedBaseUrl
+    cachedApi = api
+    return api
   }
 }
