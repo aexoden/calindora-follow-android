@@ -12,8 +12,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -30,6 +28,10 @@ class MainActivity : ComponentActivity() {
   private val _snackbarRequests = MutableSharedFlow<SnackbarRequest>(extraBufferCapacity = 1)
   private val snackbarRequests: SharedFlow<SnackbarRequest> = _snackbarRequests.asSharedFlow()
 
+  private val _showLocationSettingsRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+  private val showLocationSettingsRequests: SharedFlow<Unit> =
+      _showLocationSettingsRequests.asSharedFlow()
+
   private val locationViewModel: LocationViewModel by viewModels {
     LocationViewModel.factory(appContainer)
   }
@@ -37,9 +39,6 @@ class MainActivity : ComponentActivity() {
   private val followServiceController by lazy {
     FollowServiceController(connector = ContextFollowServiceConnector(this), scope = lifecycleScope)
   }
-
-  /** Shown when the user permanently denied location permission. Lost on recreation. */
-  private var showLocationSettingsDialog by mutableStateOf(false)
 
   private val requestNotificationPermissionLauncher =
       registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -62,7 +61,7 @@ class MainActivity : ComponentActivity() {
               SnackbarRequest(UiText.Simple(R.string.message_location_permission_required))
           )
         } else {
-          showLocationSettingsDialog = true
+          _showLocationSettingsRequests.tryEmit(Unit)
         }
       }
 
@@ -108,7 +107,6 @@ class MainActivity : ComponentActivity() {
                     locationData = serviceState?.location,
                     credentialStatus = credentialStatus,
                     displayPreferences = displayPreferences,
-                    showLocationSettingsDialog = showLocationSettingsDialog,
                 ),
             callbacks =
                 MainScreenCallbacks(
@@ -122,28 +120,13 @@ class MainActivity : ComponentActivity() {
                       val intent = Intent(this, SettingsActivity::class.java)
                       startActivity(intent)
                     },
-                    onDismissLocationSettingsDialog = { showLocationSettingsDialog = false },
-                    onOpenAppSettings = {
-                      showLocationSettingsDialog = false
-                      openAppSettings()
-                    },
+                    onOpenAppSettings = ::openAppSettings,
                     onOpenAppNotificationSettings = ::openAppNotificationSettings,
                 ),
             snackbarRequests = snackbarRequests,
+            showLocationSettingsRequests = showLocationSettingsRequests,
         )
       }
-    }
-  }
-
-  override fun onResume() {
-    super.onResume()
-
-    if (
-        showLocationSettingsDialog &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-    ) {
-      showLocationSettingsDialog = false
     }
   }
 

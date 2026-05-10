@@ -1,5 +1,7 @@
 package com.calindora.follow.ui.main
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.location.Location
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +32,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.work.WorkInfo
 import com.calindora.follow.CredentialStatus
 import com.calindora.follow.DisplayPreferences
@@ -49,7 +53,6 @@ data class MainScreenState(
     val locationData: Location?,
     val credentialStatus: CredentialStatus,
     val displayPreferences: DisplayPreferences,
-    val showLocationSettingsDialog: Boolean,
 )
 
 /** Actions [MainScreen] can invoke on its host. */
@@ -61,7 +64,6 @@ data class MainScreenCallbacks(
     val onDropFirstClick: () -> Unit,
     val onForceSyncClick: () -> Unit,
     val onSettingsClick: () -> Unit,
-    val onDismissLocationSettingsDialog: () -> Unit,
     val onOpenAppSettings: () -> Unit,
     val onOpenAppNotificationSettings: () -> Unit,
 )
@@ -72,6 +74,7 @@ fun MainScreen(
     state: MainScreenState,
     callbacks: MainScreenCallbacks,
     snackbarRequests: SharedFlow<SnackbarRequest>,
+    showLocationSettingsRequests: SharedFlow<Unit>,
 ) {
   val context = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
@@ -98,6 +101,24 @@ fun MainScreen(
         }
       }
     }
+  }
+
+  var showLocationSettingsDialog by rememberSaveable { mutableStateOf(false) }
+
+  LaunchedEffect(showLocationSettingsRequests) {
+    showLocationSettingsRequests.collect { showLocationSettingsDialog = true }
+  }
+
+  // If the user came back from system Settings having granted permission, drop the dialog.
+  LifecycleResumeEffect(Unit) {
+    if (
+        showLocationSettingsDialog &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+                PackageManager.PERMISSION_GRANTED
+    ) {
+      showLocationSettingsDialog = false
+    }
+    onPauseOrDispose {}
   }
 
   var isDebugEnabled by rememberSaveable { mutableStateOf(false) }
@@ -162,13 +183,16 @@ fun MainScreen(
     }
   }
 
-  if (state.showLocationSettingsDialog) {
+  if (showLocationSettingsDialog) {
     ConfirmationDialog(
         title = stringResource(R.string.dialog_location_permission_title),
         text = stringResource(R.string.dialog_location_permission_message),
         confirmText = stringResource(R.string.action_open_settings),
-        onConfirm = callbacks.onOpenAppSettings,
-        onDismiss = callbacks.onDismissLocationSettingsDialog,
+        onConfirm = {
+          showLocationSettingsDialog = false
+          callbacks.onOpenAppSettings()
+        },
+        onDismiss = { showLocationSettingsDialog = false },
     )
   }
 }
