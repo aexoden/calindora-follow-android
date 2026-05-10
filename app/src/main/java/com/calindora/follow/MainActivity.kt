@@ -81,7 +81,7 @@ private val DISPLAY_FORMATTER =
 /** A snackbar to show on the main screen, optionally with one action. */
 data class SnackbarRequest(val message: UiText, val action: Action? = null) {
   enum class Action {
-    OPEN_APP_SETTINGS
+    OPEN_APP_NOTIFICATION_SETTINGS
   }
 }
 
@@ -127,7 +127,7 @@ class MainActivity : ComponentActivity() {
           _snackbarRequests.tryEmit(
               SnackbarRequest(
                   message = UiText.Simple(R.string.message_notifications_denied),
-                  action = SnackbarRequest.Action.OPEN_APP_SETTINGS,
+                  action = SnackbarRequest.Action.OPEN_APP_NOTIFICATION_SETTINGS,
               )
           )
         }
@@ -201,6 +201,7 @@ class MainActivity : ComponentActivity() {
               showLocationSettingsDialog = false
               openAppSettings()
             },
+            onOpenAppNotificationSettings = { openAppNotificationSettings() },
         )
       }
     }
@@ -320,6 +321,15 @@ class MainActivity : ComponentActivity() {
         }
     startActivity(intent)
   }
+
+  private fun openAppNotificationSettings() {
+    val intent =
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+          putExtra(Settings.EXTRA_APP_PACKAGE, packageName)
+          flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+    startActivity(intent)
+  }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -345,6 +355,7 @@ fun MainScreen(
     onDismissLocationSettingsDialog: () -> Unit,
     snackbarRequests: SharedFlow<SnackbarRequest>,
     onOpenAppSettings: () -> Unit,
+    onOpenAppNotificationSettings: () -> Unit,
 ) {
   val context = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
@@ -354,7 +365,7 @@ fun MainScreen(
     snackbarRequests.collect { req ->
       val actionLabel =
           when (req.action) {
-            SnackbarRequest.Action.OPEN_APP_SETTINGS -> openSettingsText
+            SnackbarRequest.Action.OPEN_APP_NOTIFICATION_SETTINGS -> openSettingsText
             null -> null
           }
       val result =
@@ -365,7 +376,7 @@ fun MainScreen(
           )
       if (result == SnackbarResult.ActionPerformed) {
         when (req.action) {
-          SnackbarRequest.Action.OPEN_APP_SETTINGS -> onOpenAppSettings()
+          SnackbarRequest.Action.OPEN_APP_NOTIFICATION_SETTINGS -> onOpenAppNotificationSettings()
           null -> {}
         }
       }
