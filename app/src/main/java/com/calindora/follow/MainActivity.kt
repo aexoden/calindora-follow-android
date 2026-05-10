@@ -126,7 +126,7 @@ class MainActivity : ComponentActivity() {
         if (!isGranted) {
           _snackbarRequests.tryEmit(
               SnackbarRequest(
-                  message = UiText.Simple(R.string.toast_notifications_denied),
+                  message = UiText.Simple(R.string.message_notifications_denied),
                   action = SnackbarRequest.Action.OPEN_APP_SETTINGS,
               )
           )
@@ -139,7 +139,7 @@ class MainActivity : ComponentActivity() {
           startService()
         } else if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
           _snackbarRequests.tryEmit(
-              SnackbarRequest(UiText.Simple(R.string.toast_location_permission_required))
+              SnackbarRequest(UiText.Simple(R.string.message_location_permission_required))
           )
         } else {
           showLocationSettingsDialog = true
@@ -256,7 +256,9 @@ class MainActivity : ComponentActivity() {
     val success = service.setLogging(isChecked)
 
     if (!success) {
-      _snackbarRequests.tryEmit(SnackbarRequest(UiText.Simple(R.string.toast_logging_start_failed)))
+      _snackbarRequests.tryEmit(
+          SnackbarRequest(UiText.Simple(R.string.message_logging_start_failed))
+      )
     }
   }
 

@@ -28,6 +28,10 @@
     <item quantity="one">Move %d retryable report back into the submission queue</item>
     <item quantity="other">Move %d retryable reports back into the submission queue</item>
   </plurals>
+  <plurals name="message_reports_queued_for_retry">
+    <item quantity="one">%d report queued for retry</item>
+    <item quantity="other">%d reports queued for retry</item>
+  </plurals>
   <plurals name="notification_credential_text">
     <item quantity="one">%1$d consecutive report failed authentication. Please check your device key and secret.</item>
     <item quantity="other">%1$d consecutive reports failed authentication. Please check your device key and secret.</item>
@@ -35,9 +39,5 @@
   <plurals name="preference_credential_status_failures">
     <item quantity="one">%1$d of %2$d consecutive authentication failure</item>
     <item quantity="other">%1$d of %2$d consecutive authentication failures</item>
-  </plurals>
-  <plurals name="toast_reports_queued_for_retry">
-    <item quantity="one">%d report queued for retry</item>
-    <item quantity="other">%d reports queued for retry</item>
   </plurals>
 </resources>

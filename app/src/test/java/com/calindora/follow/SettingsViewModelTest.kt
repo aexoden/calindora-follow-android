@@ -289,7 +289,7 @@ class SettingsViewModelTest {
     val state = vm.uiState.value
     assertFalse(state.showResetDialog)
     assertEquals(
-        UiText.Simple(R.string.toast_credential_reset_success),
+        UiText.Simple(R.string.message_credential_reset_success),
         state.snackbarMessage,
     )
   }
@@ -304,7 +304,7 @@ class SettingsViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        UiText.Simple(R.string.toast_credential_reset_failure),
+        UiText.Simple(R.string.message_credential_reset_failure),
         vm.uiState.value.snackbarMessage,
     )
   }
@@ -320,7 +320,7 @@ class SettingsViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        UiText.Plural(R.plurals.toast_reports_queued_for_retry, 4),
+        UiText.Plural(R.plurals.message_reports_queued_for_retry, 4),
         vm.uiState.value.snackbarMessage,
     )
   }
@@ -335,7 +335,7 @@ class SettingsViewModelTest {
     advanceUntilIdle()
 
     assertEquals(
-        UiText.Simple(R.string.toast_retry_failure),
+        UiText.Simple(R.string.message_retry_failure),
         vm.uiState.value.snackbarMessage,
     )
   }
@@ -349,7 +349,7 @@ class SettingsViewModelTest {
     successVm.exportFailedReports()
     advanceUntilIdle()
     assertEquals(
-        UiText.Simple(R.string.toast_export_success),
+        UiText.Simple(R.string.message_export_success),
         successVm.uiState.value.snackbarMessage,
     )
 
@@ -360,7 +360,7 @@ class SettingsViewModelTest {
     failureVm.exportFailedReports()
     advanceUntilIdle()
     assertEquals(
-        UiText.Simple(R.string.toast_export_failure),
+        UiText.Simple(R.string.message_export_failure),
         failureVm.uiState.value.snackbarMessage,
     )
   }
@@ -373,7 +373,7 @@ class SettingsViewModelTest {
     successVm.deleteFailedReports()
     advanceUntilIdle()
     assertEquals(
-        UiText.Simple(R.string.toast_delete_success),
+        UiText.Simple(R.string.message_delete_success),
         successVm.uiState.value.snackbarMessage,
     )
 
@@ -383,7 +383,7 @@ class SettingsViewModelTest {
     failureVm.deleteFailedReports()
     advanceUntilIdle()
     assertEquals(
-        UiText.Simple(R.string.toast_delete_failure),
+        UiText.Simple(R.string.message_delete_failure),
         failureVm.uiState.value.snackbarMessage,
     )
   }

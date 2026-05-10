@@ -245,8 +245,8 @@ class SettingsViewModel(
             showResetDialog = false,
             snackbarMessage =
                 UiText.Simple(
-                    if (result.isSuccess) R.string.toast_credential_reset_success
-                    else R.string.toast_credential_reset_failure
+                    if (result.isSuccess) R.string.message_credential_reset_success
+                    else R.string.message_credential_reset_failure
                 ),
         )
       }
@@ -262,8 +262,9 @@ class SettingsViewModel(
         it.copy(
             showRetryDialog = false,
             snackbarMessage =
-                if (result.isSuccess) UiText.Plural(R.plurals.toast_reports_queued_for_retry, count)
-                else UiText.Simple(R.string.toast_retry_failure),
+                if (result.isSuccess)
+                    UiText.Plural(R.plurals.message_reports_queued_for_retry, count)
+                else UiText.Simple(R.string.message_retry_failure),
         )
       }
     }
@@ -278,8 +279,8 @@ class SettingsViewModel(
             showExportDialog = false,
             snackbarMessage =
                 UiText.Simple(
-                    if (result.isSuccess) R.string.toast_export_success
-                    else R.string.toast_export_failure
+                    if (result.isSuccess) R.string.message_export_success
+                    else R.string.message_export_failure
                 ),
         )
       }
@@ -295,8 +296,8 @@ class SettingsViewModel(
             showDeleteDialog = false,
             snackbarMessage =
                 UiText.Simple(
-                    if (result.isSuccess) R.string.toast_delete_success
-                    else R.string.toast_delete_failure
+                    if (result.isSuccess) R.string.message_delete_success
+                    else R.string.message_delete_failure
                 ),
         )
       }
