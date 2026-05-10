@@ -1,13 +1,10 @@
 package com.calindora.follow
 
 import android.Manifest
-import android.content.ComponentName
 import android.content.Intent
-import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Bundle
-import android.os.IBinder
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,17 +22,11 @@ import com.calindora.follow.ui.main.MainScreenCallbacks
 import com.calindora.follow.ui.main.MainScreenState
 import com.calindora.follow.ui.main.SnackbarRequest
 import com.calindora.follow.ui.theme.AppTheme
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
-  private var binder: FollowService.FollowBinder? = null
-  private var stateCollectionJob: Job? = null
-
   private val _snackbarRequests = MutableSharedFlow<SnackbarRequest>(extraBufferCapacity = 1)
   private val snackbarRequests: SharedFlow<SnackbarRequest> = _snackbarRequests.asSharedFlow()
 
@@ -43,30 +34,12 @@ class MainActivity : ComponentActivity() {
     LocationViewModel.factory(appContainer)
   }
 
-  /** Latest snapshot from the bound service, or null if we aren't bound. */
-  private val serviceStateFlow = MutableStateFlow<FollowService.ServiceState?>(null)
+  private val followServiceController by lazy {
+    FollowServiceController(connector = ContextFollowServiceConnector(this), scope = lifecycleScope)
+  }
 
   /** Shown when the user permanently denied location permission. Lost on recreation. */
   private var showLocationSettingsDialog by mutableStateOf(false)
-
-  private val connection =
-      object : ServiceConnection {
-        override fun onServiceConnected(className: ComponentName, service: IBinder) {
-          val followBinder = service as FollowService.FollowBinder
-          binder = followBinder
-
-          stateCollectionJob = lifecycleScope.launch {
-            followBinder.getService().state.collect { serviceStateFlow.value = it }
-          }
-        }
-
-        override fun onServiceDisconnected(name: ComponentName) {
-          binder = null
-          stateCollectionJob?.cancel()
-          stateCollectionJob = null
-          serviceStateFlow.value = null
-        }
-      }
 
   private val requestNotificationPermissionLauncher =
       registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -83,7 +56,7 @@ class MainActivity : ComponentActivity() {
   private val requestLocationPermissionLauncher =
       registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
         if (isGranted) {
-          startService()
+          followServiceController.start()
         } else if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_FINE_LOCATION)) {
           _snackbarRequests.tryEmit(
               SnackbarRequest(UiText.Simple(R.string.message_location_permission_required))
@@ -108,7 +81,7 @@ class MainActivity : ComponentActivity() {
 
     setContent {
       AppTheme {
-        val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
+        val serviceState by followServiceController.state.collectAsStateWithLifecycle()
         val credentialStatus by
             credentialFlow.collectAsStateWithLifecycle(initialValue = CredentialStatus.INITIAL)
         val displayPreferences by
@@ -176,12 +149,12 @@ class MainActivity : ComponentActivity() {
 
   override fun onStart() {
     super.onStart()
-    bindService()
+    followServiceController.bind()
   }
 
   override fun onStop() {
     super.onStop()
-    unbindService()
+    followServiceController.unbind()
   }
 
   /*
@@ -194,24 +167,17 @@ class MainActivity : ComponentActivity() {
           ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
               PackageManager.PERMISSION_GRANTED
       ) {
-        startService()
+        followServiceController.start()
       } else {
         requestLocationPermissionLauncher.launch(Manifest.permission.ACCESS_FINE_LOCATION)
       }
     } else {
-      binder?.getService()?.let { service ->
-        service.setLogging(false)
-        service.tracking = false
-      }
-      stopService()
+      followServiceController.stop()
     }
   }
 
   private fun onButtonLog(isChecked: Boolean) {
-    val service = binder?.getService() ?: return
-    val success = service.setLogging(isChecked)
-
-    if (!success) {
+    if (!followServiceController.setLogging(isChecked)) {
       _snackbarRequests.tryEmit(
           SnackbarRequest(UiText.Simple(R.string.message_logging_start_failed))
       )
@@ -219,7 +185,7 @@ class MainActivity : ComponentActivity() {
   }
 
   private fun onButtonTrack(isChecked: Boolean) {
-    binder?.getService()?.let { it.tracking = isChecked }
+    followServiceController.setTracking(isChecked)
   }
 
   private fun checkNotificationPermission() {
@@ -232,41 +198,8 @@ class MainActivity : ComponentActivity() {
   }
 
   /*
-   * Public Methods
-   */
-
-  /*
    * Private Methods
    */
-
-  private fun bindService() {
-    if (serviceStateFlow.value == null) {
-      Intent(this, FollowService::class.java).also { intent -> bindService(intent, connection, 0) }
-    }
-  }
-
-  private fun unbindService() {
-    if (serviceStateFlow.value != null) {
-      unbindService(connection)
-      stateCollectionJob?.cancel()
-      stateCollectionJob = null
-      binder = null
-      serviceStateFlow.value = null
-    }
-  }
-
-  private fun startService() {
-    Intent(this, FollowService::class.java).also { intent -> startForegroundService(intent) }
-    bindService()
-  }
-
-  private fun stopService() {
-    if (serviceStateFlow.value != null) {
-      unbindService()
-    }
-
-    Intent(this, FollowService::class.java).also { intent -> stopService(intent) }
-  }
 
   private fun openAppSettings() {
     val intent =

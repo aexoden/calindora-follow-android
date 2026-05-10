@@ -33,7 +33,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-class FollowService : Service() {
+class FollowService : Service(), FollowServiceHandle {
   private val binder = FollowBinder()
 
   data class ServiceState(
@@ -43,7 +43,7 @@ class FollowService : Service() {
   )
 
   private val _state = MutableStateFlow(ServiceState())
-  val state: StateFlow<ServiceState> = _state.asStateFlow()
+  override val state: StateFlow<ServiceState> = _state.asStateFlow()
 
   private var lastReportElapsed = 0L
 
@@ -54,19 +54,11 @@ class FollowService : Service() {
   private var nmeaLog: BufferedWriter? = null
 
   /** Whether tracked location reports are currently being queued for submission. */
-  var tracking: Boolean
+  override var tracking: Boolean
     get() = _state.value.tracking
     set(value) {
       _state.update { it.copy(tracking = value) }
     }
-
-  /**
-   * Whether NMEA logging to local storage is currently active.
-   *
-   * Read-only as changing the state can fail. Use [setLogging] to request a state change.
-   */
-  val logging: Boolean
-    get() = _state.value.logging
 
   /**
    * Enable or disable NMEA logging.
@@ -75,7 +67,7 @@ class FollowService : Service() {
    *   and logging could not be started (e.g. external storage is unavailable or the log file could
    *   not be created).
    */
-  fun setLogging(enabled: Boolean): Boolean {
+  override fun setLogging(enabled: Boolean): Boolean {
     if (_state.value.logging == enabled) return true
 
     if (enabled) {
