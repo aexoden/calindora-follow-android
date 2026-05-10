@@ -156,7 +156,7 @@ fun MainScreen(
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      CredentialWarningBanner(status = state.credentialStatus)
+      CredentialWarningBanner(status = state.credentialStatus, onClick = callbacks.onSettingsClick)
 
       Spacer(modifier = Modifier.height(8.dp))
 
