@@ -166,7 +166,6 @@ class FollowService : Service(), FollowServiceHandle {
                   getExternalFilesDir("logs"),
                   Formatters.LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
               )
-          file.createNewFile()
           BufferedWriter(FileWriter(file))
         } catch (e: IOException) {
           Log.w("FollowService", "Cannot start NMEA logging: failed to create log file", e)
