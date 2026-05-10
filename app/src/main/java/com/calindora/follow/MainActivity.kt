@@ -52,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -372,6 +373,7 @@ fun MainScreen(
           isDebugEnabled = isDebugEnabled,
           onDebugToggle = { isDebugEnabled = it },
           syncWorkInfo = syncWorkInfo,
+          queueSize = queueSize,
           onClearClick = onClearClick,
           onDropFirstClick = onDropFirstClick,
           onForceSyncClick = onForceSyncClick,
@@ -575,10 +577,14 @@ private fun DebugSection(
     isDebugEnabled: Boolean,
     onDebugToggle: (Boolean) -> Unit,
     syncWorkInfo: WorkInfo?,
+    queueSize: Int,
     onClearClick: () -> Unit,
     onDropFirstClick: () -> Unit,
     onForceSyncClick: () -> Unit,
 ) {
+  var showClearConfirm by remember { mutableStateOf(false) }
+  var showDropFirstConfirm by remember { mutableStateOf(false) }
+
   Column {
     ToggleButton(
         checked = isDebugEnabled,
@@ -602,14 +608,24 @@ private fun DebugSection(
 
         Row(modifier = Modifier.fillMaxWidth()) {
           Button(
-              onClick = onClearClick,
+              onClick = { showClearConfirm = true },
+              colors =
+                  ButtonDefaults.buttonColors(
+                      containerColor = MaterialTheme.colorScheme.error,
+                      contentColor = MaterialTheme.colorScheme.onError,
+                  ),
               modifier = Modifier.weight(1f).padding(end = 8.dp),
           ) {
             Text(stringResource(R.string.label_clear_queue))
           }
 
           Button(
-              onClick = onDropFirstClick,
+              onClick = { showDropFirstConfirm = true },
+              colors =
+                  ButtonDefaults.buttonColors(
+                      containerColor = MaterialTheme.colorScheme.error,
+                      contentColor = MaterialTheme.colorScheme.onError,
+                  ),
               modifier = Modifier.weight(1f).padding(start = 8.dp),
           ) {
             Text(stringResource(R.string.label_drop_first_queued))
@@ -623,6 +639,32 @@ private fun DebugSection(
         }
       }
     }
+  }
+
+  if (showClearConfirm) {
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_clear_queue_title),
+        text = pluralStringResource(R.plurals.dialog_clear_queue_message, queueSize, queueSize),
+        confirmText = stringResource(R.string.action_clear),
+        onConfirm = {
+          showClearConfirm = !showClearConfirm
+          onClearClick()
+        },
+        onDismiss = { showClearConfirm = !showClearConfirm },
+    )
+  }
+
+  if (showDropFirstConfirm) {
+    ConfirmationDialog(
+        title = stringResource(R.string.dialog_drop_first_title),
+        text = stringResource(R.string.dialog_drop_first_message),
+        confirmText = stringResource(R.string.action_drop),
+        onConfirm = {
+          showDropFirstConfirm = !showDropFirstConfirm
+          onDropFirstClick()
+        },
+        onDismiss = { showDropFirstConfirm = !showDropFirstConfirm },
+    )
   }
 }
 

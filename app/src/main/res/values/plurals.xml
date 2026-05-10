@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+  <plurals name="dialog_clear_queue_message">
+    <item quantity="one">This will permanently delete %d queued report. This action cannot be undone.</item>
+    <item quantity="other">This will permanently delete %d queued reports. This action cannot be undone.</item>
+  </plurals>
   <plurals name="dialog_delete_message">
     <item quantity="one">This will permanently delete %d failed report. This action cannot be undone.</item>
     <item quantity="other">This will permanently delete %d failed reports. This action cannot be undone.</item>

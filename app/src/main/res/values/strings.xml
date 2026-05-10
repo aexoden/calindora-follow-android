@@ -1,8 +1,10 @@
 <resources>
   <string name="action_back">Back</string>
   <string name="action_cancel">Cancel</string>
+  <string name="action_clear">Clear</string>
   <string name="action_delete">Delete</string>
   <string name="action_delete_failed_reports">Delete Failed Reports</string>
+  <string name="action_drop">Drop</string>
   <string name="action_export">Export</string>
   <string name="action_export_failed_reports">Export Failed Reports</string>
   <string name="action_hide_password">Hide password</string>
@@ -15,7 +17,10 @@
   <string name="app_name">Calindora Follow</string>
   <string name="credential_warning">Authentication errors detected. Submissions paused. Check settings.</string>
   <string name="credential_warning_failures">Authentication issue %1$d/%2$d. Check settings if this persists.</string>
+  <string name="dialog_clear_queue_title">Clear Submission Queue</string>
   <string name="dialog_delete_title">Delete Failed Reports</string>
+  <string name="dialog_drop_first_message">This will permanently delete the oldest queued report. This action cannot be undone.</string>
+  <string name="dialog_drop_first_title">Drop Oldest Queued Report</string>
   <string name="dialog_export_title">Export Failed Reports</string>
   <string name="dialog_location_permission_message">Calindora Follow needs location permission to share your location. Since the permission was permanently denied, you\'ll need to enable it from system settings.</string>
   <string name="dialog_location_permission_title">Location Permission Required</string>
