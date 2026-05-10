@@ -1,16 +1,22 @@
 package com.calindora.follow.ui.main
 
 import android.location.Location
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalLocale
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import com.calindora.follow.DisplayPreferences
 import com.calindora.follow.R
@@ -89,7 +95,16 @@ fun LocationStatusSection(
                 ),
         )
       } else {
-        Text(stringResource(R.string.label_waiting_for_location))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+        ) {
+          CircularProgressIndicator(
+              modifier = Modifier.size(16.dp),
+              strokeWidth = 2.dp,
+          )
+          Text(stringResource(R.string.label_waiting_for_location))
+        }
       }
 
       HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
