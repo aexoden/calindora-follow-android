@@ -64,6 +64,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.calindora.follow.ui.theme.AppTheme
 import kotlinx.coroutines.delay
 
 class SettingsActivity : ComponentActivity() {
@@ -73,7 +74,7 @@ class SettingsActivity : ComponentActivity() {
     enableEdgeToEdge()
     super.onCreate(savedInstanceState)
 
-    setContent { CalindoraFollowTheme { SettingsScreen(viewModel) } }
+    setContent { AppTheme { SettingsScreen(viewModel) } }
   }
 }
 

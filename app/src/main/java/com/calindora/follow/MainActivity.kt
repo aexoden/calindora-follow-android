@@ -58,6 +58,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.work.WorkInfo
+import com.calindora.follow.ui.theme.AppTheme
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -136,7 +137,7 @@ class MainActivity : ComponentActivity() {
     val displayFlow = displayPreferencesFlow
 
     setContent {
-      CalindoraFollowTheme {
+      AppTheme {
         val serviceState by serviceStateFlow.collectAsStateWithLifecycle()
         val credentialStatus by
             credentialFlow.collectAsStateWithLifecycle(initialValue = CredentialStatus.INITIAL)
