@@ -27,11 +27,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class FollowService : Service(), FollowServiceHandle {
   private val binder = FollowBinder()
@@ -51,7 +53,7 @@ class FollowService : Service(), FollowServiceHandle {
   private val locationReportDao by lazy { appContainer.locationReportDao }
   private val locationManager by lazy { getSystemService(LOCATION_SERVICE) as LocationManager? }
 
-  private var nmeaLog: BufferedWriter? = null
+  private var nmeaChannel: Channel<String>? = null
 
   /** Whether tracked location reports are currently being queued for submission. */
   override var tracking: Boolean
@@ -82,7 +84,7 @@ class FollowService : Service(), FollowServiceHandle {
 
   private val locationListener = LocationListener { location -> updateLocation(location) }
 
-  private val nmeaListener = OnNmeaMessageListener { nmea, _ -> logNmea(nmea) }
+  private val nmeaListener = OnNmeaMessageListener { nmea, _ -> nmeaChannel?.trySend(nmea) }
 
   /*
    * Service Methods
@@ -105,9 +107,9 @@ class FollowService : Service(), FollowServiceHandle {
 
   override fun onDestroy() {
     super.onDestroy()
-    serviceScope.cancel()
-    stopLocationUpdates()
     stopLogging()
+    stopLocationUpdates()
+    serviceScope.cancel()
   }
 
   /*
@@ -137,41 +139,6 @@ class FollowService : Service(), FollowServiceHandle {
     return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
   }
 
-  private fun logNmea(nmea: String) {
-    try {
-      nmeaLog?.apply {
-        write(nmea)
-        flush()
-      }
-    } catch (e: IOException) {
-      Log.w("FollowService", "NMEA logging stopped due to I/O error", e)
-      setLogging(false)
-    }
-  }
-
-  private fun prepareLog(): Boolean {
-    if (!isExternalStorageWritable()) {
-      Log.w("FollowService", "Cannot start NMEA logging: external storage is not mounted")
-      return false
-    }
-
-    try {
-      val file =
-          File(
-              getExternalFilesDir("logs"),
-              Formatters.LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
-          )
-      file.createNewFile()
-
-      nmeaLog = BufferedWriter(FileWriter(file))
-    } catch (e: IOException) {
-      Log.w("FollowService", "Cannot start NMEA logging: failed to create log file", e)
-      return false
-    }
-
-    return true
-  }
-
   private fun startLocationUpdates() {
     if (
         ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
@@ -191,8 +158,43 @@ class FollowService : Service(), FollowServiceHandle {
   }
 
   private fun startLogging(): Boolean {
-    if (!prepareLog()) {
+    if (!isExternalStorageWritable()) {
+      Log.w("FollowService", "Cannot start NMEA logging: external storage is not mounted")
       return false
+    }
+
+    val writer =
+        try {
+          val file =
+              File(
+                  getExternalFilesDir("logs"),
+                  Formatters.LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
+              )
+          file.createNewFile()
+          BufferedWriter(FileWriter(file))
+        } catch (e: IOException) {
+          Log.w("FollowService", "Cannot start NMEA logging: failed to create log file", e)
+          return false
+        }
+
+    val channel = Channel<String>(capacity = Channel.UNLIMITED)
+    nmeaChannel = channel
+
+    serviceScope.launch {
+      writer.use { w ->
+        try {
+          for (nmea in channel) {
+            w.write(nmea)
+          }
+        } catch (e: IOException) {
+          Log.w("FollowService", "NMEA logging stopped due to I/O error", e)
+          withContext(Dispatchers.Main) {
+            if (nmeaChannel === channel) {
+              setLogging(false)
+            }
+          }
+        }
+      }
     }
 
     if (
@@ -207,8 +209,8 @@ class FollowService : Service(), FollowServiceHandle {
 
   private fun stopLogging() {
     locationManager?.removeNmeaListener(nmeaListener)
-    nmeaLog?.close()
-    nmeaLog = null
+    nmeaChannel?.close()
+    nmeaChannel = null
   }
 
   private fun updateLocation(location: Location) {
