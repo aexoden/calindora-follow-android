@@ -212,7 +212,8 @@ class SubmissionWorker(
             )
           }
 
-          val authFailureCount = initialPrefs[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
+          var authFailureCount = initialPrefs[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] ?: 0
+
           if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
             settingsDataStore.edit { it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = true }
             notifyCredentialIssue(authFailureCount)
@@ -245,11 +246,9 @@ class SubmissionWorker(
                 is SubmissionResult.Success -> {
                   locationReportDao.markAsSubmitted(report.id, System.currentTimeMillis())
 
-                  val currentFailures =
-                      settingsDataStore.data.first()[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES]
-                          ?: 0
-                  if (currentFailures != 0) {
+                  if (authFailureCount != 0) {
                     settingsDataStore.edit { it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = 0 }
+                    authFailureCount = 0
                   }
                 }
                 is SubmissionResult.PermanentError -> {
@@ -264,22 +263,22 @@ class SubmissionWorker(
                 is SubmissionResult.ConfigurationError -> {
                   // Don't increment submissionAttempts, as we don't ever want these to be marked as
                   // permanently failed.
-                  val newCount =
-                      (settingsDataStore.data.first()[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES]
-                          ?: 0) + 1
+                  authFailureCount += 1
 
-                  if (newCount >= Config.Submission.MAX_AUTH_FAILURES) {
+                  // We defer writing the updated failure count so we can do it atomically with the
+                  // block if the threshold is reached. Both branches update the count.
+                  if (authFailureCount >= Config.Submission.MAX_AUTH_FAILURES) {
                     settingsDataStore.edit {
-                      it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
+                      it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = authFailureCount
                       it[AppPreferences.KEY_SUBMISSIONS_BLOCKED] = true
                     }
-                    notifyCredentialIssue(newCount)
+                    notifyCredentialIssue(authFailureCount)
                     return@withContext Result.failure(
                         workDataOf(OUTPUT_KEY_ERROR_REASON to ERROR_REASON_CREDENTIAL_ISSUE)
                     )
                   } else {
                     settingsDataStore.edit {
-                      it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = newCount
+                      it[AppPreferences.KEY_CONSECUTIVE_AUTH_FAILURES] = authFailureCount
                     }
                   }
 
