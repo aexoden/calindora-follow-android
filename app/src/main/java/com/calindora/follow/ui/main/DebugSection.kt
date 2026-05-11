@@ -24,7 +24,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import androidx.work.WorkInfo
 import com.calindora.follow.R
 import com.calindora.follow.SubmissionWorker
@@ -135,14 +134,14 @@ fun DebugSection(
 
 @Composable
 private fun SyncStatusCard(workInfo: WorkInfo?) {
-  Card(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-    Column(modifier = Modifier.padding(16.dp)) {
+  Card(modifier = Modifier.fillMaxWidth().padding(top = Spacing.sm)) {
+    Column(modifier = Modifier.padding(Spacing.lg)) {
       Text(
           text = stringResource(R.string.sync_status_card_title),
           style = MaterialTheme.typography.titleMedium,
           color = MaterialTheme.colorScheme.primary,
       )
-      HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+      HorizontalDivider(modifier = Modifier.padding(vertical = Spacing.sm))
 
       if (workInfo == null) {
         Text(
