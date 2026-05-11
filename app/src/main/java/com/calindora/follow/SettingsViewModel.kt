@@ -55,7 +55,6 @@ data class SettingsUiState(
 }
 
 /** ViewModel for the Settings screen */
-@OptIn(FlowPreview::class)
 class SettingsViewModel(
     private val locationReportDao: LocationReportDao,
     private val settingsDataStore: DataStore<Preferences>,
@@ -163,7 +162,10 @@ class SettingsViewModel(
    * [Config.Ui.SAVE_DEBOUNCE_MS]; pass `0L` to disable), persists the value via [save], and emits a
    * "saved" event so the UI can flash its indicator. The initial state is dropped so the load
    * itself doesn't trigger a redundant write.
+   *
+   * `debounce` is still marked @FlowPreview as of kotlinx-coroutines 1.10.2.
    */
+  @OptIn(FlowPreview::class)
   private fun <T> observeAndSave(
       selector: (SettingsUiState) -> T,
       debounceMs: Long = Config.Ui.SAVE_DEBOUNCE_MS,
