@@ -1,6 +1,7 @@
 package com.calindora.follow
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -39,9 +40,23 @@ interface SecretStore {
 }
 
 /**
+ * Source of a pre-encryption plaintext secret to migrate into [EncryptedSecretStore].
+ *
+ * Abstracted away from [SharedPreferences] so the migration logic can be tested without an Android
+ * context.
+ */
+interface LegacySecretSource {
+  /** Returns the legacy plaintext secret, or null if none is stored. */
+  fun read(): String?
+
+  /** Remove the legacy secret. Idempotent and safe to call when nothing is stored. */
+  fun clear()
+}
+
+/**
  * Tink-encrypted storage for the device secret.
  *
- * Wraps a regular preferences DataSTore. The plaintext is encrypted with AES-GCM via a Tink keyset
+ * Wraps a regular preferences DataStore. The plaintext is encrypted with AES-GCM via a Tink keyset
  * whose master key lives in the Android Keystore. Ciphertext is base64-encoded for storage as a
  * string preference.
  *
@@ -49,20 +64,32 @@ interface SecretStore {
  * been destroyed (e.g. after a full backup restore) or the ciphertext is corrupted, the user
  * re-enters the secret in Settings rather than the app crashing on read.
  */
-class EncryptedSecretStore(context: Context) : SecretStore {
-  private val appContext = context.applicationContext
-  private val dataStore: DataStore<Preferences> = appContext.encryptedSecretDataStore
+class EncryptedSecretStore
+internal constructor(
+    private val dataStore: DataStore<Preferences>,
+    private val legacy: LegacySecretSource,
+    aeadProvider: () -> Aead,
+) : SecretStore {
+  /**
+   * Built on first use so the Android Keystore handshake doesn't run on the main thread at app
+   * startup.
+   */
+  private val aead: Aead by lazy(aeadProvider)
 
-  private val aead: Aead by lazy {
-    AeadConfig.register()
-    AndroidKeysetManager.Builder()
-        .withSharedPref(appContext, TINK_KEYSET_NAME, TINK_KEYSET_PREFS)
-        .withKeyTemplate(KeyTemplates.get("AES256_GCM"))
-        .withMasterKeyUri(MASTER_KEY_URI)
-        .build()
-        .keysetHandle
-        .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
-  }
+  /** Production constructor: assembles the real DataStore, legacy SharedPreferences, and Tink. */
+  constructor(
+      context: Context
+  ) : this(
+      dataStore = context.applicationContext.encryptedSecretDataStore,
+      legacy =
+          SharedPreferencesLegacySecretSource(
+              context.applicationContext.getSharedPreferences(
+                  AppPreferences.legacyPrefsName(context.applicationContext),
+                  Context.MODE_PRIVATE,
+              )
+          ),
+      aeadProvider = { buildAndroidKeystoreAead(context.applicationContext) },
+  )
 
   /**
    * Migrate a plaintext secret from legacy SharedPreferences if present and the encrypted store is
@@ -86,16 +113,9 @@ class EncryptedSecretStore(context: Context) : SecretStore {
     if (alreadyMigrated) return
 
     withContext(Dispatchers.IO) {
-      val legacyPrefs =
-          appContext.getSharedPreferences(
-              AppPreferences.legacyPrefsName(appContext),
-              Context.MODE_PRIVATE,
-          )
-
-      val legacySecret = legacyPrefs.getString(LEGACY_KEY_DEVICE_SECRET, null) ?: return@withContext
-
+      val legacySecret = legacy.read() ?: return@withContext
       set(legacySecret)
-      legacyPrefs.edit().remove(LEGACY_KEY_DEVICE_SECRET).apply()
+      legacy.clear()
     }
   }
 
@@ -132,6 +152,26 @@ class EncryptedSecretStore(context: Context) : SecretStore {
   companion object {
     private val EMPTY_AAD = ByteArray(0)
   }
+}
+
+private class SharedPreferencesLegacySecretSource(private val prefs: SharedPreferences) :
+    LegacySecretSource {
+  override fun read(): String? = prefs.getString(LEGACY_KEY_DEVICE_SECRET, null)
+
+  override fun clear() {
+    prefs.edit().remove(LEGACY_KEY_DEVICE_SECRET).apply()
+  }
+}
+
+private fun buildAndroidKeystoreAead(context: Context): Aead {
+  AeadConfig.register()
+  return AndroidKeysetManager.Builder()
+      .withSharedPref(context, TINK_KEYSET_NAME, TINK_KEYSET_PREFS)
+      .withKeyTemplate(KeyTemplates.get("AES256_GCM"))
+      .withMasterKeyUri(MASTER_KEY_URI)
+      .build()
+      .keysetHandle
+      .getPrimitive(RegistryConfiguration.get(), Aead::class.java)
 }
 
 private val Context.encryptedSecretDataStore: DataStore<Preferences> by
