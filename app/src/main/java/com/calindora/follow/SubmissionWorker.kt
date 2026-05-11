@@ -167,7 +167,7 @@ class SubmissionWorker(
               val file =
                   File(
                       logsDir,
-                      "failed_reports_${Formatters.LOG_FILE_TIMESTAMP.format(Instant.now())}.log",
+                      "failed_reports_${LOG_FILE_TIMESTAMP.format(Instant.now())}.log",
                   )
 
               withContext(Dispatchers.IO) {

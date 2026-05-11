@@ -161,7 +161,7 @@ class FollowService : Service(), FollowServiceHandle {
           val file =
               File(
                   getExternalFilesDir("logs"),
-                  Formatters.LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
+                  LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
               )
           BufferedWriter(FileWriter(file))
         } catch (e: IOException) {
