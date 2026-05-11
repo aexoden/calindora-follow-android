@@ -3,6 +3,8 @@ package com.calindora.follow.ui.settings
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
@@ -21,7 +23,12 @@ import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun SavedIndicator(visible: Boolean) {
-  AnimatedVisibility(visible = visible, enter = fadeIn(), exit = fadeOut()) {
+  AnimatedVisibility(
+      visible = visible,
+      enter =
+          slideInHorizontally(initialOffsetX = { it }) + fadeIn() + scaleIn(initialScale = 0.85f),
+      exit = fadeOut(),
+  ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
