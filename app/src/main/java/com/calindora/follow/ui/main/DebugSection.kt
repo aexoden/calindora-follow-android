@@ -29,8 +29,8 @@ import androidx.work.WorkInfo
 import com.calindora.follow.R
 import com.calindora.follow.SubmissionWorker
 import com.calindora.follow.ui.components.ConfirmationDialog
-import com.calindora.follow.ui.components.OnOffPillButton
 import com.calindora.follow.ui.components.StatusRow
+import com.calindora.follow.ui.components.ToggleListItem
 import com.calindora.follow.ui.format.formatCountdown
 import com.calindora.follow.ui.format.rememberCountdown
 import com.calindora.follow.ui.format.stopReasonLabel
@@ -51,13 +51,13 @@ fun DebugSection(
   var showDropFirstConfirm by remember { mutableStateOf(false) }
 
   Column {
-    OnOffPillButton(
-        checked = isDebugEnabled,
-        onCheckedChange = onDebugToggle,
-        enabledText = stringResource(R.string.label_debug_on),
-        disabledText = stringResource(R.string.label_debug_off),
-        modifier = Modifier.fillMaxWidth(),
-    )
+    Card(modifier = Modifier.fillMaxWidth()) {
+      ToggleListItem(
+          headline = stringResource(R.string.controls_debug),
+          checked = isDebugEnabled,
+          onCheckedChange = onDebugToggle,
+      )
+    }
 
     AnimatedVisibility(
         visible = isDebugEnabled,

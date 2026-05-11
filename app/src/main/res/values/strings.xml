@@ -15,6 +15,10 @@
   <string name="action_settings">Settings</string>
   <string name="action_show_password">Show Password</string>
   <string name="app_name">Calindora Follow</string>
+  <string name="controls_debug">Debug Controls</string>
+  <string name="controls_service">Enable Service</string>
+  <string name="controls_tracking">Track Location</string>
+  <string name="controls_logging">Log Location</string>
   <string name="credential_warning">Authentication errors detected. Submissions paused. Check settings.</string>
   <string name="credential_warning_failures">Authentication issue %1$d/%2$d. Check settings if this persists.</string>
   <string name="dialog_clear_queue_title">Clear Submission Queue</string>
