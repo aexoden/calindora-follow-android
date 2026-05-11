@@ -160,7 +160,7 @@ class FollowService : Service(), FollowServiceHandle {
         try {
           val file =
               File(
-                  getExternalFilesDir("logs"),
+                  logsDir,
                   LOG_FILE_TIMESTAMP.format(Instant.now()) + ".log",
               )
           BufferedWriter(FileWriter(file))
