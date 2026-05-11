@@ -38,4 +38,17 @@ class ValidationTest {
     assertNull(validateServiceUrl("  https://example.com  "))
     assertNull(validateServiceUrl("https://follow.calindora.com"))
   }
+
+  @Test
+  fun `https URLs with ports and queries pass`() {
+    assertNull(validateServiceUrl("https://example.com:8443"))
+    assertNull(validateServiceUrl("https://example.com/api?v=1"))
+  }
+
+  @Test
+  fun `URLs with malformed authority are rejected`() {
+    // HttpUrl is stricter than java.net.URL — a non-numeric port slips past `URL(...)` but is
+    // rejected here, well before Retrofit would have to handle it.
+    assertEquals(UrlValidationError.Malformed, validateServiceUrl("https://example.com:abc"))
+  }
 }
