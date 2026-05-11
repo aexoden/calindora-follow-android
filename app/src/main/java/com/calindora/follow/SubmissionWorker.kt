@@ -21,9 +21,7 @@ import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import com.calindora.follow.SubmissionWorker.Companion.OUTPUT_KEY_ERROR_REASON
-import java.io.BufferedWriter
 import java.io.File
-import java.io.FileWriter
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.time.Instant
@@ -171,20 +169,27 @@ class SubmissionWorker(
                   )
 
               withContext(Dispatchers.IO) {
-                BufferedWriter(FileWriter(file)).use { writer ->
+                file.bufferedWriter().use { writer ->
                   for (report in reports) {
-                    writer.write("Report ID: ${report.id}\n")
-                    writer.write("Created At: ${Instant.ofEpochMilli(report.createdAt)}\n")
-                    writer.write("Timestamp: ${report.timestamp}\n")
-                    writer.write("Latitude: ${report.latitude}\n")
-                    writer.write("Longitude: ${report.longitude}\n")
-                    writer.write("Altitude: ${report.altitude}\n")
-                    writer.write("Speed: ${report.speed}\n")
-                    writer.write("Bearing: ${report.bearing}\n")
-                    writer.write("Accuracy: ${report.accuracy}\n")
-                    writer.write("Failure Code: ${report.permanentFailureCode}\n")
-                    writer.write("Failure Reason: ${report.permanentFailureReason}\n")
-                    writer.write("Signature Input: ${report.signatureInput()}\n\n---\n\n")
+                    writer.append(
+                        buildString {
+                          appendLine("Report ID: ${report.id}")
+                          appendLine("Created At: ${Instant.ofEpochMilli(report.createdAt)}")
+                          appendLine("Timestamp: ${report.timestamp}")
+                          appendLine("Latitude: ${report.latitude}")
+                          appendLine("Longitude: ${report.longitude}")
+                          appendLine("Altitude: ${report.altitude}")
+                          appendLine("Speed: ${report.speed}")
+                          appendLine("Bearing: ${report.bearing}")
+                          appendLine("Accuracy: ${report.accuracy}")
+                          appendLine("Failure Code: ${report.permanentFailureCode}")
+                          appendLine("Failure Reason: ${report.permanentFailureReason}")
+                          appendLine("Signature Input: ${report.signatureInput()}")
+                          appendLine()
+                          appendLine("---")
+                          appendLine()
+                        }
+                    )
                   }
                 }
               }
