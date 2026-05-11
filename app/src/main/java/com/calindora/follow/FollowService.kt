@@ -1,6 +1,7 @@
 package com.calindora.follow
 
 import android.Manifest
+import android.app.Notification
 import android.app.PendingIntent
 import android.app.PendingIntent.FLAG_IMMUTABLE
 import android.app.Service
@@ -91,12 +92,11 @@ class FollowService : Service(), FollowServiceHandle {
 
   override fun onCreate() {
     super.onCreate()
-
-    createNotification()
     startLocationUpdates()
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    startForeground(Notifications.Ids.FOREGROUND, buildForegroundNotification())
     return START_STICKY
   }
 
@@ -115,7 +115,7 @@ class FollowService : Service(), FollowServiceHandle {
    * Private Methods
    */
 
-  private fun createNotification() {
+  private fun buildForegroundNotification(): Notification {
     val intent =
         Intent(this, MainActivity::class.java).apply {
           flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -123,15 +123,12 @@ class FollowService : Service(), FollowServiceHandle {
 
     val pendingIntent = PendingIntent.getActivity(this, 0, intent, FLAG_IMMUTABLE)
 
-    val notification =
-        NotificationCompat.Builder(this, Notifications.ChannelIds.DEFAULT)
-            .setSmallIcon(R.drawable.ic_stat_notification)
-            .setContentTitle(getText(R.string.notification_title))
-            .setContentText(getText(R.string.notification_text))
-            .setContentIntent(pendingIntent)
-            .build()
-
-    startForeground(Notifications.Ids.FOREGROUND, notification)
+    return NotificationCompat.Builder(this, Notifications.ChannelIds.DEFAULT)
+        .setSmallIcon(R.drawable.ic_stat_notification)
+        .setContentTitle(getText(R.string.notification_title))
+        .setContentText(getText(R.string.notification_text))
+        .setContentIntent(pendingIntent)
+        .build()
   }
 
   private fun startLocationUpdates() {
