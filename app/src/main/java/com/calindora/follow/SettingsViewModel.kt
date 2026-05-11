@@ -141,62 +141,39 @@ class SettingsViewModel(
   }
 
   private fun startSaveCollectors() {
-    viewModelScope.launch {
-      _uiState
-          .map { it.serviceUrl }
-          .distinctUntilChanged()
-          .drop(1)
-          .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
-          .collect { url ->
-            settingsDataStore.edit { it[AppPreferences.KEY_SERVICE_URL] = url }
-            _savedEvents.tryEmit(Unit)
-          }
+    observeAndSave(SettingsUiState::serviceUrl) { url ->
+      settingsDataStore.edit { it[AppPreferences.KEY_SERVICE_URL] = url }
     }
-
-    viewModelScope.launch {
-      _uiState
-          .map { it.deviceKey }
-          .distinctUntilChanged()
-          .drop(1)
-          .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
-          .collect { key ->
-            settingsDataStore.edit { it[AppPreferences.KEY_DEVICE_KEY] = key }
-            _savedEvents.tryEmit(Unit)
-          }
+    observeAndSave(SettingsUiState::deviceKey) { key ->
+      settingsDataStore.edit { it[AppPreferences.KEY_DEVICE_KEY] = key }
     }
+    observeAndSave(SettingsUiState::deviceSecret) { secret -> encryptedSecretStore.set(secret) }
 
-    viewModelScope.launch {
-      _uiState
-          .map { it.deviceSecret }
-          .distinctUntilChanged()
-          .drop(1)
-          .debounce(Config.Ui.SAVE_DEBOUNCE_MS)
-          .collect { secret ->
-            encryptedSecretStore.set(secret)
-            _savedEvents.tryEmit(Unit)
-          }
+    // Enum selections are persisted immediately — no debounce window needed.
+    observeAndSave(SettingsUiState::distanceUnit, debounceMs = 0L) { unit ->
+      settingsDataStore.edit { it[AppPreferences.KEY_DISTANCE_UNIT] = unit.name }
     }
-
-    viewModelScope.launch {
-      _uiState
-          .map { it.distanceUnit }
-          .distinctUntilChanged()
-          .drop(1)
-          .collect { unit ->
-            settingsDataStore.edit { it[AppPreferences.KEY_DISTANCE_UNIT] = unit.name }
-            _savedEvents.tryEmit(Unit)
-          }
+    observeAndSave(SettingsUiState::speedUnit, debounceMs = 0L) { unit ->
+      settingsDataStore.edit { it[AppPreferences.KEY_SPEED_UNIT] = unit.name }
     }
+  }
 
+  /**
+   * Launch a collector that watches one slice of [_uiState], debounces it (deafult
+   * [Config.Ui.SAVE_DEBOUNCE_MS]; pass `0L` to disable), persists the value via [save], and emits a
+   * "saved" event so the UI can flash its indicator. The initial state is dropped so the load
+   * itself doesn't trigger a redundant write.
+   */
+  private fun <T> observeAndSave(
+      selector: (SettingsUiState) -> T,
+      debounceMs: Long = Config.Ui.SAVE_DEBOUNCE_MS,
+      save: suspend (T) -> Unit,
+  ) {
     viewModelScope.launch {
-      _uiState
-          .map { it.speedUnit }
-          .distinctUntilChanged()
-          .drop(1)
-          .collect { unit ->
-            settingsDataStore.edit { it[AppPreferences.KEY_SPEED_UNIT] = unit.name }
-            _savedEvents.tryEmit(Unit)
-          }
+      _uiState.map(selector).distinctUntilChanged().drop(1).debounce(debounceMs).collect { value ->
+        save(value)
+        _savedEvents.tryEmit(Unit)
+      }
     }
   }
 
