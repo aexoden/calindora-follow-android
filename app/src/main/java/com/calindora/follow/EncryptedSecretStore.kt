@@ -1,7 +1,6 @@
 package com.calindora.follow
 
 import android.content.Context
-import android.util.Base64
 import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
@@ -15,6 +14,7 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import java.io.IOException
 import java.security.GeneralSecurityException
+import java.util.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -111,14 +111,14 @@ class EncryptedSecretStore(context: Context) : SecretStore {
 
   private fun encrypt(plaintext: String): String {
     val ct = aead.encrypt(plaintext.toByteArray(Charsets.UTF_8), EMPTY_AAD)
-    return Base64.encodeToString(ct, Base64.NO_WRAP)
+    return Base64.getEncoder().encodeToString(ct)
   }
 
   private fun decrypt(ciphertext: String?): String? {
     if (ciphertext.isNullOrEmpty()) return null
 
     return try {
-      val bytes = Base64.decode(ciphertext, Base64.NO_WRAP)
+      val bytes = Base64.getDecoder().decode(ciphertext)
       String(aead.decrypt(bytes, EMPTY_AAD), Charsets.UTF_8)
     } catch (e: GeneralSecurityException) {
       Log.w("EncryptedSecretStore", "Failed to decrypt device secret", e)
