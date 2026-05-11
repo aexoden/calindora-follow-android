@@ -3,7 +3,7 @@ package com.calindora.follow
 import androidx.annotation.StringRes
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-sealed class UrlValidationError(@param:StringRes val errorRes: Int, val description: String) {
+sealed class UrlValidationError(@StringRes val errorRes: Int, val description: String) {
   data object Empty :
       UrlValidationError(R.string.error_url_required, "Service URL is not configured")
 

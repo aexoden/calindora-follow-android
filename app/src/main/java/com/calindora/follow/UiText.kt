@@ -11,11 +11,11 @@ import androidx.annotation.StringRes
 sealed interface UiText {
   fun resolve(context: Context): String
 
-  data class Simple(@param:StringRes val resId: Int) : UiText {
+  data class Simple(@StringRes val resId: Int) : UiText {
     override fun resolve(context: Context): String = context.getString(resId)
   }
 
-  data class Plural(@param:PluralsRes val resId: Int, val quantity: Int) : UiText {
+  data class Plural(@PluralsRes val resId: Int, val quantity: Int) : UiText {
     override fun resolve(context: Context): String =
         context.resources.getQuantityString(resId, quantity, quantity)
   }

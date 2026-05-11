@@ -178,7 +178,12 @@ android {
   }
 }
 
-kotlin { compilerOptions { jvmTarget = JvmTarget.JVM_17 } }
+kotlin {
+  compilerOptions {
+    jvmTarget = JvmTarget.JVM_17
+    freeCompilerArgs.add("-Xannotation-default-target=param-property")
+  }
+}
 
 ksp { arg("room.schemaLocation", "$projectDir/schemas") }
 

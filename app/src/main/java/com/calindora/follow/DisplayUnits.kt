@@ -15,8 +15,8 @@ private const val MPS_TO_MPH = 3600.0 / 1609.344
 private const val MPS_TO_KNOTS = 3600.0 / 1852.0
 
 enum class DistanceUnit(
-    @param:StringRes val labelRes: Int,
-    @param:StringRes val abbreviationRes: Int,
+    @StringRes val labelRes: Int,
+    @StringRes val abbreviationRes: Int,
 ) {
   METERS(R.string.unit_meters, R.string.unit_meters_abbr),
   FEET(R.string.unit_feet, R.string.unit_feet_abbr);
@@ -38,7 +38,7 @@ enum class DistanceUnit(
 
 enum class SpeedUnit(
     @StringRes val labelRes: Int,
-    @param:StringRes val abbreviationRes: Int,
+    @StringRes val abbreviationRes: Int,
 ) {
   METERS_PER_SECOND(R.string.unit_meters_per_second, R.string.unit_meters_per_second_abbr),
   KILOMETERS_PER_HOUR(R.string.unit_kilometers_per_hour, R.string.unit_kilometers_per_hour_abbr),
