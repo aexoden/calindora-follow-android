@@ -48,6 +48,27 @@ class SubmissionWorkerExportFailedReportsTest {
     val contents = files[0].readText()
     assertTrue(contents.contains("Report ID: 1"))
     assertTrue(contents.contains("Report ID: 2"))
+
+    // One block per report, separated by "---" lines.
+    assertEquals(2, contents.split(Regex("(?m)^---$")).size - 1)
+
+    // Spot-check the field set is present in the first record.
+    val firstRecord = contents.substringBefore("---")
+    listOf(
+            "Report ID: 1",
+            "Created At: ",
+            "Timestamp: 0",
+            "Latitude: 1.0",
+            "Longitude: 0.0",
+            "Altitude: 0.0",
+            "Speed: 0.0",
+            "Bearing: 0.0",
+            "Accuracy: 0.0",
+            "Failure Code: 0",
+            "Failure Reason: ",
+            "Signature Input: ",
+        )
+        .forEach { assertTrue("expected '$it' in record:\n$firstRecord", firstRecord.contains(it)) }
   }
 
   private fun sampleReport(id: Long, latitude: Double = 0.0) =
