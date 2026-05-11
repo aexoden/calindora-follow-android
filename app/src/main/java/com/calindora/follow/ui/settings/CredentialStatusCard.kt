@@ -1,9 +1,7 @@
 package com.calindora.follow.ui.settings
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
@@ -12,20 +10,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.calindora.follow.Config
 import com.calindora.follow.R
+import com.calindora.follow.ui.theme.Spacing
 
 @Composable
 fun CredentialStatusCard(isBlocked: Boolean, consecutiveAuthFailures: Int) {
   Card(modifier = Modifier.fillMaxWidth()) {
-    Column(modifier = Modifier.padding(16.dp)) {
-      Text(
-          text = stringResource(R.string.preference_credential_status),
-          style = MaterialTheme.typography.titleSmall,
-      )
-      Spacer(modifier = Modifier.height(4.dp))
-
+    Column(modifier = Modifier.padding(Spacing.lg)) {
       val (text, color) =
           when {
             isBlocked ->

@@ -86,7 +86,6 @@
   <string name="preference_category_connection">Connection</string>
   <string name="preference_category_display">Display</string>
   <string name="preference_category_status">Status</string>
-  <string name="preference_credential_status">Credential Status</string>
   <string name="preference_credential_status_blocked">Authentication blocked due to multiple failures</string>
   <string name="preference_credential_status_ok">Authentication working normally</string>
   <string name="preference_device_key">Device Key</string>
