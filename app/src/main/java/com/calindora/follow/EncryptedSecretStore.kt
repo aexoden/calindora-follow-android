@@ -110,7 +110,12 @@ internal constructor(
           Log.w("EncryptedSecretStore", "Failed to read encrypted store during migration", e)
           return
         }
-    if (alreadyMigrated) return
+    if (alreadyMigrated) {
+      // The encrypted copy is authoritative; sweep any residual plaintext from an interrupted
+      // migration.
+      withContext(Dispatchers.IO) { legacy.clear() }
+      return
+    }
 
     withContext(Dispatchers.IO) {
       val legacySecret = legacy.read() ?: return@withContext

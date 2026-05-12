@@ -59,31 +59,33 @@ class EncryptedSecretStoreTest {
     val store = EncryptedSecretStore(dataStore, legacy, ::MarkerAead)
 
     store.migrateFromLegacyIfNeeded()
+    val ciphertextAfterFirst = dataStore.state.value[ciphertextKey]
     val writesAfterFirst = dataStore.writeCount
-    val clearsAfterFirst = legacy.clearCount
 
     repeat(3) { store.migrateFromLegacyIfNeeded() }
 
+    // No additional encrypted writes — we don't re-encrypt the secret on each call.
     assertEquals(writesAfterFirst, dataStore.writeCount)
-    assertEquals(clearsAfterFirst, legacy.clearCount)
+    // Ciphertext on disk is byte-for-byte unchanged.
+    assertEquals(ciphertextAfterFirst, dataStore.state.value[ciphertextKey])
+    // Legacy stays empty, and the secret remains readable.
+    assertNull(legacy.value)
     assertEquals("legacy-secret", store.get())
   }
 
   @Test
-  fun `migrate short-circuits without reading legacy when DataStore already has ciphertext`() =
+  fun `migrate sweeps residual legacy secret even when DataStore already has ciphertext`() =
       runTest {
         val dataStore = FakeDataStore()
-        val legacy = FakeLegacySource(initial = "stale-but-irrelevant")
+        val legacy = FakeLegacySource(initial = "residual-from-interrupted-migration")
         val store = EncryptedSecretStore(dataStore, legacy, ::MarkerAead)
 
-        // Simulate a prior successful migration.
         store.set("current-secret")
-        val readsBefore = legacy.readCount
 
         store.migrateFromLegacyIfNeeded()
 
-        assertEquals(readsBefore, legacy.readCount)
-        assertEquals(0, legacy.clearCount)
+        assertNull(legacy.value)
+        assertEquals("current-secret", store.get())
       }
 
   @Test
