@@ -86,12 +86,12 @@ class SubmissionBackoffManager(
           "Resetting submission backoff after connectivity recovery " +
               "(runAttemptCount=${info.runAttemptCount})",
       )
+      workManager.enqueueUniqueWork(
+          SubmissionWorker.UNIQUE_WORK_NAME,
+          ExistingWorkPolicy.REPLACE,
+          SubmissionWorker.buildWorkRequest(),
+      )
     }
-    workManager.enqueueUniqueWork(
-        SubmissionWorker.UNIQUE_WORK_NAME,
-        ExistingWorkPolicy.REPLACE,
-        SubmissionWorker.buildWorkRequest(),
-    )
   }
 
   private companion object {
