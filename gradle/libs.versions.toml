@@ -5,7 +5,7 @@ ksp = "2.3.9"
 
 androidxActivity = "1.13.0"
 androidxComposeBom = "2026.05.01"
-androidxCoreKtx = "1.18.0"
+androidxCoreKtx = "1.19.0"
 androidxDatastore = "1.2.1"
 androidxEspresso = "3.7.0"
 androidxLifecycle = "2.10.0"
