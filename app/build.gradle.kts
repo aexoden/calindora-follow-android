@@ -182,7 +182,6 @@ kotlin {
   compilerOptions {
     jvmTarget = JvmTarget.JVM_21
     allWarningsAsErrors.set(true)
-    freeCompilerArgs.add("-Xannotation-default-target=param-property")
   }
 }
 
