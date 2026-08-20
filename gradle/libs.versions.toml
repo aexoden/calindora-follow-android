@@ -4,7 +4,7 @@ kotlin = "2.4.10"
 ksp = "2.3.11"
 
 androidxActivity = "1.13.0"
-androidxComposeBom = "2026.06.01"
+androidxComposeBom = "2026.08.00"
 androidxCoreKtx = "1.19.0"
 androidxDatastore = "1.2.1"
 androidxEspresso = "3.7.0"
